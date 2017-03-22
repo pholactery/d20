@@ -4,12 +4,11 @@
 // 3. impl and iterator that would support roll_dice("3d6").to_iter().take(6);
 // 5. Module docs
 //      #![warn(missing_docs)]
-// 6. Push to github repo
-// 7. Round out crate details (cargo.toml)
 // 8. Publish to crates.io
 
+// Remove this dependency to avoid reliance on rust nightly toolchain.
+// #![feature(range_contains)]
 
-#![feature(range_contains)]
 extern crate rand;
 extern crate regex;
 
@@ -75,19 +74,24 @@ impl DieRollTerm {
 }
 
 /// `roll_dice()` will evaluate the string input as a die roll expression (e.g. 3d6 + 4).
-pub fn roll_dice(s: String) -> Roll {
+pub fn roll_dice<'a>(s: String) -> Result<Roll, &'a str> {
     let s: String = s.split_whitespace().collect();
     let mut rng = thread_rng();
 
     let terms: Vec<DieRollTerm> = parse_die_roll_terms(&s);
+    println!("TERMS: {:?}\tLEN: {}", terms, terms.len());
+    if terms.len() == 0 {
+        Err("Invalid die roll expression: no die roll terms found.")
+    } else {
 
-    let v: Vec<_> = terms.into_iter().map(|t| t.evaluate()).collect();
-    let t = v.clone();
+        let v: Vec<_> = terms.into_iter().map(|t| t.evaluate()).collect();
+        let t = v.clone();
 
-    Roll {
-        drex: s.to_string(),
-        values: v,
-        total: t.into_iter().fold(0i32, |sum, val| sum + DieRollTerm::calculate(val)),
+        Ok(Roll {
+            drex: s.to_string(),
+            values: v,
+            total: t.into_iter().fold(0i32, |sum, val| sum + DieRollTerm::calculate(val)),
+        })
     }
 }
 
