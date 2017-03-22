@@ -1,0 +1,8 @@
+[package]
+name = "d20"
+version = "0.1.0"
+authors = ["Dan Nemeth <dnemeth@pivotal.io>"]
+
+[dependencies]
+rand = "0.3"
+regex = "0.2"
