@@ -1,13 +1,9 @@
-// 1. Error handling
 // 2. Format a response that includes individual dice
 //    e.g. 4d6 => d6(3, 5, 1, 6)
 // 3. impl and iterator that would support roll_dice("3d6").to_iter().take(6);
 // 5. Module docs
 //      #![warn(missing_docs)]
 // 8. Publish to crates.io
-
-// Remove this dependency to avoid reliance on rust nightly toolchain.
-// #![feature(range_contains)]
 
 extern crate rand;
 extern crate regex;
@@ -109,9 +105,13 @@ fn parse_die_roll_terms(drex: &str) -> Vec<DieRollTerm> {
 }
 
 /// `roll_range()` will generate a random number within the specified range and return that value.
-pub fn roll_range(min: i32, max: i32) -> i32 {
-    let mut rng = thread_rng();
-    rng.gen_range(min, max + 1)
+pub fn roll_range<'a>(min: i32, max: i32) -> Result<i32, &'a str> {
+    if min > max {
+        Err("Invalid range: min must be less than or equal to max")
+    } else {
+        let mut rng = thread_rng();
+        Ok(rng.gen_range(min, max + 1))
+    }
 }
 
 #[cfg(test)]

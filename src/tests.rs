@@ -121,7 +121,6 @@ fn roll_dice_produces_roll_for_valid_expression() {
     assert_eq!(r.values[0].1.len(), 2);
     assert_eq!(r.values[1].1.len(), 1);
     assert_eq!(r.values[2].1.len(), 4);
-    //assert!((12..59).contains(r.total));
 
     let s = "3d1 + 2d1 + 1".to_string();
     let r = roll_dice(s);
@@ -138,6 +137,7 @@ fn roll_dice_produces_roll_for_valid_expression() {
 fn roll_dice_produces_error_for_invalid_expression() {
     let s = "two plus two equals CHICKEN!".to_string();
     let r = roll_dice(s);
+
     match r {
         Ok(_) => assert!(false),
         Err(_) => assert!(true),
@@ -145,11 +145,22 @@ fn roll_dice_produces_error_for_invalid_expression() {
 }
 
 #[test]
-fn result_range_roll_works() {
+fn result_range_roll_produces_result_in_range() {
     let r1 = roll_range(3, 3);
+    let r1 = r1.unwrap();
     let r2 = roll_range(4, 4);
-    let r3 = roll_range(257, 341);
+    let r2 = r2.unwrap();
+
     assert_eq!(r1, 3);
     assert_eq!(r2, 4);
-    //assert!((257..342).contains(r3));
+}
+
+#[test]
+fn roll_range_min_max_switched() {
+    let r = roll_range(12, 1);
+
+    match r {
+        Ok(_) => assert!(false),
+        Err(_) => assert!(true),
+    }
 }
