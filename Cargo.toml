@@ -1,7 +1,9 @@
 [package]
 name = "d20"
 version = "0.1.0"
-authors = ["Dan Nemeth <dnemeth@pivotal.io>"]
+authors = ["Dan Nemeth <dan.nemeth@gmail.com>", "Kevin Hoffman <alothien@gmail.com>"]
+description = "A library for evaluating and processing die roll expressions or result ranges."
+license = "MIT/Apache-2.0"
 
 [dependencies]
 rand = "0.3"
