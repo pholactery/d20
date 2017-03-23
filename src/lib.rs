@@ -62,8 +62,7 @@ impl DieRollTerm {
         match self {
             DieRollTerm::Modifier(n) => (self, vec![n]),
             DieRollTerm::DieRoll { multiplier: m, sides: s } => {
-                let mut rng = thread_rng();
-                (self, (0..m.abs()).map(|_| rng.gen_range(1, s as i8 + 1)).collect())
+                (self, (0..m.abs()).map(|_| thread_rng().gen_range(1, s as i8 + 1)).collect())
             }
         }
     }
@@ -72,10 +71,8 @@ impl DieRollTerm {
 /// `roll_dice()` will evaluate the string input as a die roll expression (e.g. 3d6 + 4).
 pub fn roll_dice<'a>(s: String) -> Result<Roll, &'a str> {
     let s: String = s.split_whitespace().collect();
-    let mut rng = thread_rng();
-
     let terms: Vec<DieRollTerm> = parse_die_roll_terms(&s);
-    println!("TERMS: {:?}\tLEN: {}", terms, terms.len());
+
     if terms.len() == 0 {
         Err("Invalid die roll expression: no die roll terms found.")
     } else {
@@ -109,8 +106,7 @@ pub fn roll_range<'a>(min: i32, max: i32) -> Result<i32, &'a str> {
     if min > max {
         Err("Invalid range: min must be less than or equal to max")
     } else {
-        let mut rng = thread_rng();
-        Ok(rng.gen_range(min, max + 1))
+        Ok(thread_rng().gen_range(min, max + 1))
     }
 }
 

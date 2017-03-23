@@ -1,4 +1,3 @@
-use Roll;
 use DieRollTerm;
 use {roll_dice, roll_range, parse_die_roll_terms};
 
@@ -68,7 +67,6 @@ fn die_roll_term_calculated() {
     let nt = DieRollTerm::parse("-4d1").evaluate();
     let pm = DieRollTerm::parse("+7").evaluate();
     let nm = DieRollTerm::parse("-7").evaluate();
-    let rng = DieRollTerm::parse("3d10").evaluate();
 
     let dtr = DieRollTerm::calculate(dt);
     assert_eq!(dtr, 6);
@@ -81,9 +79,6 @@ fn die_roll_term_calculated() {
 
     let nmr = DieRollTerm::calculate(nm);
     assert_eq!(nmr, -7);
-
-    //let rngr = DieRollTerm::calculate(rng);
-    //assert!((3..31).contains(rngr));
 }
 
 #[test]
