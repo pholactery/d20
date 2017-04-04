@@ -183,3 +183,15 @@ fn die_roll_term_displays_properly() {
     let out = format!("{}", nm);
     assert_eq!(out, "-6");
 }
+
+#[test]
+fn roll_displays_properly() {
+    let roll = roll_dice("3d1 + 5".to_string()).unwrap();
+    let bigger_roll = roll_dice("3d1 - 2d1 - 4".to_string()).unwrap();
+
+    let out = format!("{}", roll);
+    assert_eq!(out, "3d1[1, 1, 1]+5 (Total: 8)");
+
+    let out = format!("{}", bigger_roll);
+    assert_eq!(out, "3d1[1, 1, 1]-2d1[1, 1]-4 (Total: -3)");
+}

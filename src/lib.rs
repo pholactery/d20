@@ -1,9 +1,14 @@
-// 1. Display
-//    e.g. 4d6 => d6(3, 5, 1, 6)
-// 2. Module docs
-//      #![warn(missing_docs)]
-// 3. Publish to crates.io
-
+//! D20
+//!
+//! # Examples
+//! ```
+//! extern crate d20;
+//!
+//! fn main() {
+//!     let r = d20::roll_dice("3d6 + 4".to_string()).unwrap();
+//!     assert!(r.total > 6);
+//! }
+//! ```
 extern crate rand;
 extern crate regex;
 
@@ -13,27 +18,40 @@ use regex::Regex;
 
 
 
-/// Roll struct contains the `DieRollExpression` (if applicable), the values of
-/// the individual rolls, and the calculated total.
+/// The `Roll` struct contains the `DieRollExpression`, the values of
+/// the individual rolls, and the calculated total. It is returned by the `roll_dice()`
+/// function.
+///
+/// You can perform a roll mutliple times by converting it into an iterator.
 #[derive(Debug)]
 pub struct Roll {
     // die roll expression
-    drex: String,
+    pub drex: String,
     // individual die roll results
-    //values: Vec<(DieRollTerm, Vec<i8>)>,
-    values: Vec<DieRollValues>,
+    pub values: Vec<(DieRollTerm, Vec<i8>)>,
     // result of the drex
-    total: i32,
+    pub total: i32,
 }
 
 
-// impl fmt::Display for Roll {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl fmt::Display for Roll {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // desired output: 3d6[6,4,3]+5 [Total: 18]
+        let mut out = String::new();
 
-
-//         write!(f, "({}, {})", self.x, self.y)
-//     }
-// }
+        for i in 0..self.values.len() {
+            let ref val = self.values[i];
+            match val.0 {
+                DieRollTerm::Modifier(_) => out = out + format!("{}", &val.0).as_str(),
+                DieRollTerm::DieRoll { .. } => {
+                    out = out + format!("{}{:?}", &val.0, val.1).as_str();
+                }
+            };
+        }
+        out = format!("{} (Total: {})", out, self.total);
+        write!(f, "{}", out)
+    }
+}
 
 impl IntoIterator for Roll {
     type Item = Roll;
@@ -47,6 +65,7 @@ impl IntoIterator for Roll {
     }
 }
 
+/// A `RollIterator` is created when `Roll.into_iter()` method is called.
 pub struct RollIterator {
     roll: Roll,
     index: usize,
@@ -67,26 +86,17 @@ impl Iterator for RollIterator {
     }
 }
 
-type DieRollValues = (DieRollTerm, Vec<i8>);
-
-//FIXME:  This does not compile with the following error:
-// `only triats defined in the current crate can be implemented for arbitrary types`
-//
-// Appears we will have to forego the DieRollValues type
-
-// impl fmt::Display for DieRollValues {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         match *self.0 {
-//             DieRollTerm::Modifier(_) => write!(f, "{}", *self.0),
-//             DieRollTerm::DieRoll { .. } => write!(f, "{}{}", *self.0, *self.1),
-//         }
-//     }
-// }
-
-/// NEED DOCS
+/// `DieRollTerm` represents an indifividual term within a die roll expression.
 #[derive(Debug, Clone)]
 pub enum DieRollTerm {
-    DieRoll { multiplier: i8, sides: u8 },
+    /// `DieRoll1` variant
+    DieRoll {
+        /// multiplier docs
+        multiplier: i8,
+        /// sides docs
+        sides: u8,
+    },
+    /// `Modifier` variant
     Modifier(i8),
 }
 
