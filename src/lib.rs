@@ -5,7 +5,7 @@
 //! extern crate d20;
 //!
 //! fn main() {
-//!     let r = d20::roll_dice("3d6 + 4".to_string()).unwrap();
+//!     let r = d20::roll_dice("3d6 + 4").unwrap();
 //!     assert!(r.total > 6);
 //! }
 //! ```
@@ -75,7 +75,7 @@ impl Iterator for RollIterator {
     type Item = Roll;
 
     fn next(&mut self) -> Option<Roll> {
-        let result = roll_dice(self.roll.drex.to_string());
+        let result = roll_dice(&self.roll.drex);
         match result {
             Ok(r) => {
                 self.index += 1;
@@ -148,7 +148,7 @@ impl fmt::Display for DieRollTerm {
 }
 
 /// `roll_dice()` will evaluate the string input as a die roll expression (e.g. 3d6 + 4).
-pub fn roll_dice<'a>(s: String) -> Result<Roll, &'a str> {
+pub fn roll_dice<'a>(s: &'a str) -> Result<Roll, &'a str> {
     let s: String = s.split_whitespace().collect();
     let terms: Vec<DieRollTerm> = parse_die_roll_terms(&s);
 
@@ -160,7 +160,7 @@ pub fn roll_dice<'a>(s: String) -> Result<Roll, &'a str> {
         let t = v.clone();
 
         Ok(Roll {
-            drex: s.to_string(),
+            drex: s,
             values: v,
             total: t.into_iter().fold(0i32, |sum, val| sum + DieRollTerm::calculate(val)),
         })

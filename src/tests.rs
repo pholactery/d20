@@ -108,7 +108,7 @@ fn die_roll_term_modifier_evaluated() {
 
 #[test]
 fn roll_dice_produces_roll_for_valid_expression() {
-    let s = "2d6 + 6 + 4d10".to_string();
+    let s = "2d6 + 6 + 4d10";
     let r = roll_dice(s);
     let r = r.unwrap();
 
@@ -118,12 +118,12 @@ fn roll_dice_produces_roll_for_valid_expression() {
     assert_eq!(r.values[1].1.len(), 1);
     assert_eq!(r.values[2].1.len(), 4);
 
-    let s = "3d1 + 2d1 + 1".to_string();
+    let s = "3d1 + 2d1 + 1";
     let r = roll_dice(s);
     let r = r.unwrap();
     assert_eq!(r.total, 6);
 
-    let s = "-3d1 + 2d1 + 1".to_string();
+    let s = "-3d1 + 2d1 + 1";
     let r = roll_dice(s);
     let r = r.unwrap();
     assert_eq!(r.total, 0);
@@ -131,7 +131,7 @@ fn roll_dice_produces_roll_for_valid_expression() {
 
 #[test]
 fn roll_dice_produces_error_for_invalid_expression() {
-    let s = "two plus two equals CHICKEN!".to_string();
+    let s = "two plus two equals CHICKEN!";
     let r = roll_dice(s);
 
     match r {
@@ -163,7 +163,7 @@ fn roll_range_min_max_switched() {
 
 #[test]
 fn iterator_yields_new_results() {
-    let r = roll_dice("3d6".to_string());
+    let r = roll_dice("3d6");
     let v: Vec<Roll> = r.unwrap().into_iter().take(6).collect();
 
     assert_eq!(v.len(), 6);
@@ -186,8 +186,8 @@ fn die_roll_term_displays_properly() {
 
 #[test]
 fn roll_displays_properly() {
-    let roll = roll_dice("3d1 + 5".to_string()).unwrap();
-    let bigger_roll = roll_dice("3d1 - 2d1 - 4".to_string()).unwrap();
+    let roll = roll_dice("3d1 + 5").unwrap();
+    let bigger_roll = roll_dice("3d1 - 2d1 - 4").unwrap();
 
     let out = format!("{}", roll);
     assert_eq!(out, "3d1[1, 1, 1]+5 (Total: 8)");
