@@ -1,15 +1,17 @@
-// 2. Format a response that includes individual dice
+// 1. Display
 //    e.g. 4d6 => d6(3, 5, 1, 6)
-// 3. impl and iterator that would support roll_dice("3d6").to_iter().take(6);
-// 5. Module docs
+// 2. Module docs
 //      #![warn(missing_docs)]
-// 8. Publish to crates.io
+// 3. Publish to crates.io
 
 extern crate rand;
 extern crate regex;
 
+use std::fmt;
 use rand::{thread_rng, Rng};
 use regex::Regex;
+
+
 
 /// Roll struct contains the `DieRollExpression` (if applicable), the values of
 /// the individual rolls, and the calculated total.
@@ -18,10 +20,68 @@ pub struct Roll {
     // die roll expression
     drex: String,
     // individual die roll results
-    values: Vec<(DieRollTerm, Vec<i8>)>,
+    //values: Vec<(DieRollTerm, Vec<i8>)>,
+    values: Vec<DieRollValues>,
     // result of the drex
     total: i32,
 }
+
+
+// impl fmt::Display for Roll {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+
+
+//         write!(f, "({}, {})", self.x, self.y)
+//     }
+// }
+
+impl IntoIterator for Roll {
+    type Item = Roll;
+    type IntoIter = RollIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        RollIterator {
+            roll: self,
+            index: 0,
+        }
+    }
+}
+
+pub struct RollIterator {
+    roll: Roll,
+    index: usize,
+}
+
+impl Iterator for RollIterator {
+    type Item = Roll;
+
+    fn next(&mut self) -> Option<Roll> {
+        let result = roll_dice(self.roll.drex.to_string());
+        match result {
+            Ok(r) => {
+                self.index += 1;
+                Some(r)
+            }
+            Err(_) => return None,
+        }
+    }
+}
+
+type DieRollValues = (DieRollTerm, Vec<i8>);
+
+//FIXME:  This does not compile with the following error:
+// `only triats defined in the current crate can be implemented for arbitrary types`
+//
+// Appears we will have to forego the DieRollValues type
+
+// impl fmt::Display for DieRollValues {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         match *self.0 {
+//             DieRollTerm::Modifier(_) => write!(f, "{}", *self.0),
+//             DieRollTerm::DieRoll { .. } => write!(f, "{}{}", *self.0, *self.1),
+//         }
+//     }
+// }
 
 /// NEED DOCS
 #[derive(Debug, Clone)]
@@ -64,6 +124,15 @@ impl DieRollTerm {
             DieRollTerm::DieRoll { multiplier: m, sides: s } => {
                 (self, (0..m.abs()).map(|_| thread_rng().gen_range(1, s as i8 + 1)).collect())
             }
+        }
+    }
+}
+
+impl fmt::Display for DieRollTerm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            DieRollTerm::Modifier(n) => write!(f, "{:+}", n),
+            DieRollTerm::DieRoll { multiplier: m, sides: s } => write!(f, "{}d{}", m, s),
         }
     }
 }

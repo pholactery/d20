@@ -1,3 +1,4 @@
+use Roll;
 use DieRollTerm;
 use {roll_dice, roll_range, parse_die_roll_terms};
 
@@ -158,4 +159,27 @@ fn roll_range_min_max_switched() {
         Ok(_) => assert!(false),
         Err(_) => assert!(true),
     }
+}
+
+#[test]
+fn iterator_yields_new_results() {
+    let r = roll_dice("3d6".to_string());
+    let v: Vec<Roll> = r.unwrap().into_iter().take(6).collect();
+
+    assert_eq!(v.len(), 6);
+    assert!(v[0].total >= 3 && v[0].total <= 18);
+}
+
+#[test]
+fn die_roll_term_displays_properly() {
+    let drt = DieRollTerm::parse("3d6");
+    let pm = DieRollTerm::parse("5");
+    let nm = DieRollTerm::parse("-6");
+
+    let out = format!("{}", drt);
+    assert_eq!(out, "3d6");
+    let out = format!("{}", pm);
+    assert_eq!(out, "+5");
+    let out = format!("{}", nm);
+    assert_eq!(out, "-6");
 }
