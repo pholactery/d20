@@ -38,11 +38,42 @@
 //!        Ok(_) => assert!(false), // this should NOT be ok, fail
 //!        Err(_) => assert!(true), // bad expressions produce errors
 //!    }
-//!     
-//!     let rg = d20::roll_range(1,100).unwrap();
-//!     assert!(rg >= 1 && rg <= 100);
 //! }
 //! ```
+//! ### Iterating Roll
+//! A valid `Roll` can be converted into an open ended iterator via its `into_iter()` method, providing successive
+//! rolls of the given die roll expression.
+//!
+//! _Note that it will be necessary to constrain the iterator via `take(n)`._
+//! 
+//! ```rust
+//! extern crate d20;
+//! use d20::*;
+//!
+//! fn main() {
+//!     let v: Vec<Roll> = d20::roll_dice("3d6").unwrap().into_iter().take(3).collect();
+//!
+//!     assert_eq!(v.len(), 3);
+//!     assert!(v[0].total >= 3 && v[0].total <= 18);
+//!     assert!(v[1].total >= 3 && v[1].total <= 18);
+//!     assert!(v[2].total >= 3 && v[2].total <= 18);     
+//! }
+//!
+//! ```
+//!
+//! ### Range Rolls
+//! If you are less concerned about dice rolls and require only a random number within a given range, `roll_range()`
+//! will do just that.
+//!
+//! ```rust
+//! # extern crate d20;
+//! # fn main() {
+//!     let rg = d20::roll_range(1,100).unwrap();
+//!     assert!(rg >= 1 && rg <= 100);
+//! # }
+//! ```
+//!
+//! 
 extern crate rand;
 extern crate regex;
 
@@ -230,7 +261,6 @@ fn parse_die_roll_terms(drex: &str) -> Vec<DieRollTerm> {
 
     let matches = re.find_iter(drex);
     for m in matches {
-        println!("{:?}", m);
         terms.push(DieRollTerm::parse(&drex[m.start()..m.end()]));
     }
     terms
