@@ -8,7 +8,7 @@ homepage = "https://github.com/pholactery/d20"
 documentation = "https://docs.rs/d20"
 repository = "https://github.com/pholactery/d20"
 readme = "README.md"
-keywords = ["die", "dice", "roll", "game", "gaming", "random", "dnd", "tabletop", "rpg"]
+keywords = ["dice", "roll", "game", "random", "dnd"]
 
 
 [dependencies]
