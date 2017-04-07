@@ -25,7 +25,7 @@ Examples of valid _roll expressions_ include:
 Roll expressions can have arbitrary length and complexity, and it is perfectly legal for the final result
 of a roll expression to be negative after applying modifiers.
 
-# Examples
+## Usage
 ```
 extern crate d20;
 
