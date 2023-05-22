@@ -77,7 +77,7 @@
 extern crate rand;
 extern crate regex;
 
-use std::fmt;
+use std::{fmt, error::Error};
 use rand::{thread_rng, Rng};
 use regex::Regex;
 
@@ -184,15 +184,15 @@ pub enum DieRollTerm {
 
 
 impl DieRollTerm {
-    fn parse(drt: &str) -> DieRollTerm {
+    fn parse(drt: &str) -> Result<DieRollTerm, Box<dyn Error>> {
         if drt.to_lowercase().contains('d') {
             let v: Vec<&str> = drt.split("d").collect();
-            DieRollTerm::DieRoll {
-                multiplier: v[0].parse::<i8>().unwrap(),
-                sides: v[1].parse::<u8>().unwrap(),
-            }
+            Ok(DieRollTerm::DieRoll {
+                multiplier: v[0].parse::<i8>()?,
+                sides: v[1].parse::<u8>()?,
+            })
         } else {
-            DieRollTerm::Modifier(drt.parse::<i8>().unwrap())
+            Ok(DieRollTerm::Modifier(drt.parse::<i8>()?))
         }
     }
 
@@ -237,7 +237,10 @@ impl fmt::Display for DieRollTerm {
 /// text indicating why the function was unable to roll the dice / evaluate the expression.
 pub fn roll_dice<'a>(s: &'a str) -> Result<Roll, &'a str> {
     let s: String = s.split_whitespace().collect();
-    let terms: Vec<DieRollTerm> = parse_die_roll_terms(&s);
+    let terms: Vec<DieRollTerm> = match parse_die_roll_terms(&s) {
+        Ok(t) => t,
+        Err(_) => return Err("Invalid die roll expression: unable to parse terms."),
+    };
 
     if terms.len() == 0 {
         Err("Invalid die roll expression: no die roll terms found.")
@@ -254,16 +257,16 @@ pub fn roll_dice<'a>(s: &'a str) -> Result<Roll, &'a str> {
     }
 }
 
-fn parse_die_roll_terms(drex: &str) -> Vec<DieRollTerm> {
+fn parse_die_roll_terms(drex: &str) -> Result<Vec<DieRollTerm>, Box<dyn Error>> {
     let mut terms = Vec::new();
 
-    let re = Regex::new(r"([+-]?\s*\d+[dD]\d+|[+-]?\s*\d+)").unwrap();
+    let re = Regex::new(r"([+-]?\s*\d+[dD]\d+|[+-]?\s*\d+)")?;
 
     let matches = re.find_iter(drex);
     for m in matches {
-        terms.push(DieRollTerm::parse(&drex[m.start()..m.end()]));
+        terms.push(DieRollTerm::parse(&drex[m.start()..m.end()])?);
     }
-    terms
+    Ok(terms)
 }
 
 /// Generates a random number within the specified range. Returns a `Result` containing

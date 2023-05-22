@@ -9,7 +9,7 @@ fn die_roll_expression_parsed() {
     let nd = "-4d10+5".to_string();
     let mf = "50+2d8-1d4".to_string();
 
-    let pv = parse_die_roll_terms(&pd);
+    let pv = parse_die_roll_terms(&pd).unwrap();
     if let DieRollTerm::DieRoll { multiplier: m, sides: s } = pv[0] {
         assert_eq!(m, 3);
         assert_eq!(s, 12);
@@ -18,7 +18,7 @@ fn die_roll_expression_parsed() {
         assert_eq!(n, 4);
     }
 
-    let nv = parse_die_roll_terms(&nd);
+    let nv = parse_die_roll_terms(&nd).unwrap();
     if let DieRollTerm::DieRoll { multiplier: m, sides: s } = nv[0] {
         assert_eq!(m, -4);
         assert_eq!(s, 10);
@@ -27,7 +27,7 @@ fn die_roll_expression_parsed() {
         assert_eq!(n, 5);
     }
 
-    let mv = parse_die_roll_terms(&mf);
+    let mv = parse_die_roll_terms(&mf).unwrap();
     if let DieRollTerm::Modifier(n) = mv[0] {
         assert_eq!(n, 50);
     }
@@ -46,8 +46,8 @@ fn die_roll_expression_parsed() {
 fn die_roll_term_parsed() {
     let drt = "3d6".to_string();
     let mfy = "+7".to_string();
-    let drt = DieRollTerm::parse(&drt);
-    let mfy = DieRollTerm::parse(&mfy);
+    let drt = DieRollTerm::parse(&drt).unwrap();
+    let mfy = DieRollTerm::parse(&mfy).unwrap();
     if let DieRollTerm::DieRoll { multiplier: m, sides: s } = drt {
         assert_eq!(m, 3);
         assert_eq!(s, 6);
@@ -64,10 +64,10 @@ fn die_roll_term_parsed() {
 
 #[test]
 fn die_roll_term_calculated() {
-    let dt = DieRollTerm::parse("6d1").evaluate();
-    let nt = DieRollTerm::parse("-4d1").evaluate();
-    let pm = DieRollTerm::parse("+7").evaluate();
-    let nm = DieRollTerm::parse("-7").evaluate();
+    let dt = DieRollTerm::parse("6d1").unwrap().evaluate();
+    let nt = DieRollTerm::parse("-4d1").unwrap().evaluate();
+    let pm = DieRollTerm::parse("+7").unwrap().evaluate();
+    let nm = DieRollTerm::parse("-7").unwrap().evaluate();
 
     let dtr = DieRollTerm::calculate(dt);
     assert_eq!(dtr, 6);
@@ -84,7 +84,7 @@ fn die_roll_term_calculated() {
 
 #[test]
 fn die_roll_term_evaluated() {
-    let drt = DieRollTerm::parse("3d1");
+    let drt = DieRollTerm::parse("3d1").unwrap();
     let v = drt.evaluate();
 
     assert_eq!(v.1.len(), 3);
@@ -95,8 +95,8 @@ fn die_roll_term_evaluated() {
 
 #[test]
 fn die_roll_term_modifier_evaluated() {
-    let mfy = DieRollTerm::parse("+7");
-    let mfy2 = DieRollTerm::parse("-7");
+    let mfy = DieRollTerm::parse("+7").unwrap();
+    let mfy2 = DieRollTerm::parse("-7").unwrap();
     let v1 = mfy.evaluate();
     let v2 = mfy2.evaluate();
 
@@ -172,9 +172,9 @@ fn iterator_yields_new_results() {
 
 #[test]
 fn die_roll_term_displays_properly() {
-    let drt = DieRollTerm::parse("3d6");
-    let pm = DieRollTerm::parse("5");
-    let nm = DieRollTerm::parse("-6");
+    let drt = DieRollTerm::parse("3d6").unwrap();
+    let pm = DieRollTerm::parse("5").unwrap();
+    let nm = DieRollTerm::parse("-6").unwrap();
 
     let out = format!("{}", drt);
     assert_eq!(out, "3d6");
