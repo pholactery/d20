@@ -1,10 +1,10 @@
 //! D20
 //!
 //! **D20** is a simple crate designed to evaluate _roll expressions_. A _roll expression_ is an
-//! english-language string that reflects the intent of a dungeon or game master to perform a 
+//! english-language string that reflects the intent of a dungeon or game master to perform a
 //! particular roll.
 //!
-//! For example, in a tabletop game you may frequently hear phrases like _"roll 2d10"_, or 
+//! For example, in a tabletop game you may frequently hear phrases like _"roll 2d10"_, or
 //! _"roll 3d6 and add 5"_. These are roll expressions, and the components within them are
 //! what we call _die roll terms_. A _die roll term_ is either a term that calls for the rolling
 //! of an n-sided die x times (e.g. 3d6) or a modifier that simply adds or subtracts a constant value
@@ -45,7 +45,7 @@
 //! rolls of the given die roll expression.
 //!
 //! _Note that it will be necessary to constrain the iterator via `take(n)`._
-//! 
+//!
 //! ```rust
 //! extern crate d20;
 //! use d20::*;
@@ -56,7 +56,7 @@
 //!     assert_eq!(v.len(), 3);
 //!     assert!(v[0].total >= 3 && v[0].total <= 18);
 //!     assert!(v[1].total >= 3 && v[1].total <= 18);
-//!     assert!(v[2].total >= 3 && v[2].total <= 18);     
+//!     assert!(v[2].total >= 3 && v[2].total <= 18);
 //! }
 //!
 //! ```
@@ -73,22 +73,22 @@
 //! # }
 //! ```
 //!
-//! 
+//!
 extern crate rand;
 extern crate regex;
 
-use std::fmt;
+use std::{fmt, error::Error};
 use rand::{thread_rng, Rng};
 use regex::Regex;
 
 
 
-/// Represents the _results_ of an evaluated die roll expression. 
-/// 
+/// Represents the _results_ of an evaluated die roll expression.
+///
 /// The `Roll` struct contains the original _die roll expression_ passed to the `roll_dice()`
 /// function.
 ///
-/// The list of `values` will always be a vector containing at least one element because roll 
+/// The list of `values` will always be a vector containing at least one element because roll
 /// expressions are not valid without at least 1 term. Each resulting value is a tuple containing
 /// the parsed `DieRollTerm` and a vector of values. For `DieRollTerm::Modifier` terms, this will be a single-element
 /// vector containing the modifier value. For `DieRollTerm::DieRoll` terms, this will be a vector
@@ -108,14 +108,14 @@ pub struct Roll {
 }
 
 
-/// Formats roll results, including die rolls, in a human-readable string. 
+/// Formats roll results, including die rolls, in a human-readable string.
 ///
 /// For example, if the original expression was `3d6+5`, formatting the `Roll` struct
 /// might result in the following text:
 ///
 /// `3d6[3,4,6]+5 (Total: 18)`
 impl fmt::Display for Roll {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {        
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut out = String::new();
 
         for i in 0..self.values.len() {
@@ -133,7 +133,7 @@ impl fmt::Display for Roll {
 }
 
 /// Converts an evaluated roll expression into an iterator, allowing the expression
-/// to be evaluated (including re-rolling of dice) multiple times. 
+/// to be evaluated (including re-rolling of dice) multiple times.
 impl IntoIterator for Roll {
     type Item = Roll;
     type IntoIter = RollIterator;
@@ -184,15 +184,15 @@ pub enum DieRollTerm {
 
 
 impl DieRollTerm {
-    fn parse(drt: &str) -> DieRollTerm {
+    fn parse(drt: &str) -> Result<DieRollTerm, Box<dyn Error>> {
         if drt.to_lowercase().contains('d') {
             let v: Vec<&str> = drt.split("d").collect();
-            DieRollTerm::DieRoll {
-                multiplier: v[0].parse::<i8>().unwrap(),
-                sides: v[1].parse::<u8>().unwrap(),
-            }
+            Ok(DieRollTerm::DieRoll {
+                multiplier: v[0].parse::<i8>()?,
+                sides: v[1].parse::<u8>()?,
+            })
         } else {
-            DieRollTerm::Modifier(drt.parse::<i8>().unwrap())
+            Ok(DieRollTerm::Modifier(drt.parse::<i8>()?))
         }
     }
 
@@ -222,7 +222,7 @@ impl DieRollTerm {
 
 /// Formats an individual die roll term in a human-friendly fashion. For `Modifier` terms,
 /// this will force the printing of a + or - sign before the modifier value. For `DieRoll`
-/// terms, this displays the term in the form `5d10`. 
+/// terms, this displays the term in the form `5d10`.
 impl fmt::Display for DieRollTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -237,7 +237,10 @@ impl fmt::Display for DieRollTerm {
 /// text indicating why the function was unable to roll the dice / evaluate the expression.
 pub fn roll_dice<'a>(s: &'a str) -> Result<Roll, &'a str> {
     let s: String = s.split_whitespace().collect();
-    let terms: Vec<DieRollTerm> = parse_die_roll_terms(&s);
+    let terms: Vec<DieRollTerm> = match parse_die_roll_terms(&s) {
+        Ok(t) => t,
+        Err(_) => return Err("Invalid die roll expression: unable to parse terms."),
+    };
 
     if terms.len() == 0 {
         Err("Invalid die roll expression: no die roll terms found.")
@@ -254,20 +257,20 @@ pub fn roll_dice<'a>(s: &'a str) -> Result<Roll, &'a str> {
     }
 }
 
-fn parse_die_roll_terms(drex: &str) -> Vec<DieRollTerm> {
+fn parse_die_roll_terms(drex: &str) -> Result<Vec<DieRollTerm>, Box<dyn Error>> {
     let mut terms = Vec::new();
 
-    let re = Regex::new(r"([+-]?\s*\d+[dD]\d+|[+-]?\s*\d+)").unwrap();
+    let re = Regex::new(r"([+-]?\s*\d+[dD]\d+|[+-]?\s*\d+)")?;
 
     let matches = re.find_iter(drex);
     for m in matches {
-        terms.push(DieRollTerm::parse(&drex[m.start()..m.end()]));
+        terms.push(DieRollTerm::parse(&drex[m.start()..m.end()])?);
     }
-    terms
+    Ok(terms)
 }
 
 /// Generates a random number within the specified range. Returns a `Result` containing
-/// either a valid signed 32-bit integer with the randomly generated number or some text 
+/// either a valid signed 32-bit integer with the randomly generated number or some text
 /// indicating the reason for failure.
 pub fn roll_range<'a>(min: i32, max: i32) -> Result<i32, &'a str> {
     if min > max {

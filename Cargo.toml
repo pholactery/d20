@@ -1,6 +1,7 @@
 [package]
 name = "d20"
 version = "0.1.0"
+edition = "2021"
 authors = ["Dan Nemeth <dan.nemeth@gmail.com>", "Kevin Hoffman <alothien@gmail.com>"]
 description = "A library for rolling dice based on simple expressions"
 license = "MPL-2.0"
