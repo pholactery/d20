@@ -1,8 +1,8 @@
 //! D20
 //!
 //! **D20** is a simple crate designed to evaluate _roll expressions_. A _roll expression_ is an
-//! english-language string that reflects the intent of a dungeon or game master to perform a
-//! particular roll. 
+//! english-language string that reflects the intent of a dungeon or game master to perform a 
+//! particular roll.
 //!
 //! For example, in a tabletop game you may frequently hear phrases like _"roll 2d10"_, or 
 //! _"roll 3d6 and add 5"_. These are roll expressions, and the components within them are
@@ -270,7 +270,7 @@ fn parse_die_roll_terms(drex: &str) -> Result<Vec<DieRollTerm>, Box<dyn Error>> 
 }
 
 /// Generates a random number within the specified range. Returns a `Result` containing
-/// either a valid signed 32-bit integer with the randomly generated number or some text
+/// either a valid signed 32-bit integer with the randomly generated number or some text 
 /// indicating the reason for failure.
 pub fn roll_range<'a>(min: i32, max: i32) -> Result<i32, &'a str> {
     if min > max {
