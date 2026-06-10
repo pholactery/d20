@@ -1,6 +1,6 @@
 [package]
 name = "d20"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Dan Nemeth <dan.nemeth@gmail.com>", "Kevin Hoffman <alothien@gmail.com>"]
 description = "A library for rolling dice based on simple expressions"
 license = "MPL-2.0"
@@ -16,3 +16,6 @@ edition = "2024"
 rand = "0.10"
 regex = "1"
 thiserror = "2"
+
+[dev-dependencies]
+proptest = "1"

@@ -1,10 +1,10 @@
 //! D20
 //!
 //! **D20** is a simple crate designed to evaluate _roll expressions_. A _roll expression_ is an
-//! english-language string that reflects the intent of a dungeon or game master to perform a 
+//! english-language string that reflects the intent of a dungeon or game master to perform a
 //! particular roll.
 //!
-//! For example, in a tabletop game you may frequently hear phrases like _"roll 2d10"_, or 
+//! For example, in a tabletop game you may frequently hear phrases like _"roll 2d10"_, or
 //! _"roll 3d6 and add 5"_. These are roll expressions, and the components within them are
 //! what we call _die roll terms_. A _die roll term_ is either a term that calls for the rolling
 //! of an n-sided die x times (e.g. 3d6) or a modifier that simply adds or subtracts a constant value
@@ -59,10 +59,10 @@
 //! assert!((1..=100).contains(&rg));
 //! ```
 //!
-use std::fmt;
-use std::sync::LazyLock;
 use rand::{Rng, RngExt};
 use regex::Regex;
+use std::fmt;
+use std::sync::LazyLock;
 
 /// Matches a single term anchored at the start of the remaining input, allowing
 /// surrounding whitespace. Captures the optional leading sign, and either a die
@@ -141,11 +141,11 @@ pub enum D20Error {
 }
 
 /// Represents the _results_ of an evaluated die roll expression.
-/// 
+///
 /// The `Roll` struct contains the original _die roll expression_ passed to the `roll_dice()`
 /// function.
 ///
-/// The list of `values` will always be a vector containing at least one element because roll 
+/// The list of `values` will always be a vector containing at least one element because roll
 /// expressions are not valid without at least 1 term. Each resulting value is a tuple containing
 /// the parsed `DieRollTerm` and a vector of values. For `DieRollTerm::Modifier` terms, this will be a single-element
 /// vector containing the modifier value. For `DieRollTerm::DieRoll` terms, this will be a vector
@@ -165,8 +165,7 @@ pub struct Roll {
     pub total: i64,
 }
 
-
-/// Formats roll results, including die rolls, in a human-readable string. 
+/// Formats roll results, including die rolls, in a human-readable string.
 ///
 /// For example, if the original expression was `3d6+5`, formatting the `Roll` struct
 /// might result in the following text:
@@ -222,7 +221,11 @@ impl Iterator for RollIterator {
             .map(|term| term.evaluate(&mut rng))
             .collect();
         let total = values.iter().map(DieRollTerm::calculate).sum();
-        Some(Roll { drex: self.drex.clone(), values, total })
+        Some(Roll {
+            drex: self.drex.clone(),
+            values,
+            total,
+        })
     }
 }
 
@@ -241,7 +244,6 @@ pub enum DieRollTerm {
     /// Numeric modifier used in simple left-to-right numeric evaluation of a die roll expression.
     Modifier(i32),
 }
-
 
 impl DieRollTerm {
     /// Parses a single, whitespace-free term such as `3d6`, `-2d10`, `+5`, or `-2`.
@@ -278,7 +280,10 @@ impl DieRollTerm {
                 return Err(D20Error::ZeroSidedDie);
             }
             if sides > MAX_SIDES as u64 {
-                return Err(D20Error::SidesTooLarge { sides, max: MAX_SIDES });
+                return Err(D20Error::SidesTooLarge {
+                    sides,
+                    max: MAX_SIDES,
+                });
             }
 
             Ok(DieRollTerm::DieRoll {
@@ -290,7 +295,10 @@ impl DieRollTerm {
                 .parse::<i64>()
                 .map_err(|_| D20Error::InvalidTerm(drt.to_string()))?;
             if modifier.unsigned_abs() > MAX_MODIFIER as u64 {
-                return Err(D20Error::ModifierTooLarge { modifier, max: MAX_MODIFIER });
+                return Err(D20Error::ModifierTooLarge {
+                    modifier,
+                    max: MAX_MODIFIER,
+                });
             }
             Ok(DieRollTerm::Modifier(modifier as i32))
         }
@@ -324,12 +332,15 @@ impl DieRollTerm {
 
 /// Formats an individual die roll term in a human-friendly fashion. For `Modifier` terms,
 /// this will force the printing of a + or - sign before the modifier value. For `DieRoll`
-/// terms, this displays the term in the form `5d10`. 
+/// terms, this displays the term in the form `5d10`.
 impl fmt::Display for DieRollTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DieRollTerm::Modifier(n) => write!(f, "{:+}", n),
-            DieRollTerm::DieRoll { multiplier: m, sides: s } => write!(f, "{}d{}", m, s),
+            DieRollTerm::DieRoll {
+                multiplier: m,
+                sides: s,
+            } => write!(f, "{}d{}", m, s),
         }
     }
 }
@@ -353,11 +364,14 @@ pub fn roll_dice_with_rng<R: Rng + ?Sized>(s: &str, rng: &mut R) -> Result<Roll,
         return Err(D20Error::EmptyExpression);
     }
 
-    let values: Vec<(DieRollTerm, Vec<i32>)> =
-        terms.into_iter().map(|t| t.evaluate(rng)).collect();
+    let values: Vec<(DieRollTerm, Vec<i32>)> = terms.into_iter().map(|t| t.evaluate(rng)).collect();
     let total = values.iter().map(DieRollTerm::calculate).sum();
 
-    Ok(Roll { drex, values, total })
+    Ok(Roll {
+        drex,
+        values,
+        total,
+    })
 }
 
 /// Parses a full roll expression into its terms, validating the *entire* input.

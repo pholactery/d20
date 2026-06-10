@@ -1,6 +1,6 @@
-use crate::Roll;
 use crate::DieRollTerm;
-use crate::{roll_dice, roll_range, parse_die_roll_terms};
+use crate::Roll;
+use crate::{parse_die_roll_terms, roll_dice, roll_range};
 
 #[test]
 fn die_roll_expression_parsed() {
@@ -10,7 +10,11 @@ fn die_roll_expression_parsed() {
     let mf = "50+2d8-1d4".to_string();
 
     let pv = parse_die_roll_terms(&pd).unwrap();
-    if let DieRollTerm::DieRoll { multiplier: m, sides: s } = pv[0] {
+    if let DieRollTerm::DieRoll {
+        multiplier: m,
+        sides: s,
+    } = pv[0]
+    {
         assert_eq!(m, 3);
         assert_eq!(s, 12);
     }
@@ -19,7 +23,11 @@ fn die_roll_expression_parsed() {
     }
 
     let nv = parse_die_roll_terms(&nd).unwrap();
-    if let DieRollTerm::DieRoll { multiplier: m, sides: s } = nv[0] {
+    if let DieRollTerm::DieRoll {
+        multiplier: m,
+        sides: s,
+    } = nv[0]
+    {
         assert_eq!(m, -4);
         assert_eq!(s, 10);
     }
@@ -31,15 +39,22 @@ fn die_roll_expression_parsed() {
     if let DieRollTerm::Modifier(n) = mv[0] {
         assert_eq!(n, 50);
     }
-    if let DieRollTerm::DieRoll { multiplier: m, sides: s } = mv[1] {
+    if let DieRollTerm::DieRoll {
+        multiplier: m,
+        sides: s,
+    } = mv[1]
+    {
         assert_eq!(m, 2);
         assert_eq!(s, 8);
     }
-    if let DieRollTerm::DieRoll { multiplier: m, sides: s } = mv[2] {
+    if let DieRollTerm::DieRoll {
+        multiplier: m,
+        sides: s,
+    } = mv[2]
+    {
         assert_eq!(m, -1);
         assert_eq!(s, 4);
     }
-
 }
 
 #[test]
@@ -48,7 +63,11 @@ fn die_roll_term_parsed() {
     let mfy = "+7".to_string();
     let drt = DieRollTerm::parse(&drt).unwrap();
     let mfy = DieRollTerm::parse(&mfy).unwrap();
-    if let DieRollTerm::DieRoll { multiplier: m, sides: s } = drt {
+    if let DieRollTerm::DieRoll {
+        multiplier: m,
+        sides: s,
+    } = drt
+    {
         assert_eq!(m, 3);
         assert_eq!(s, 6);
     } else {

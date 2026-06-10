@@ -26,53 +26,61 @@ Roll expressions can have arbitrary length and complexity, and it is perfectly l
 of a roll expression to be negative after applying modifiers.
 
 ## Usage
-```
-extern crate d20;
+```rust
+let r = d20::roll_dice("3d6 + 4").unwrap();
+assert!(r.total > 6);
 
-fn main() {
-    let r = d20::roll_dice("3d6 + 4").unwrap();
-    assert!(r.total > 6);
-    let r = d20::roll_dice("1d1-3").unwrap();
-    assert_eq!(r.total, -2);
+let r = d20::roll_dice("1d1-3").unwrap();
+assert_eq!(r.total, -2);
 
-    let r = d20::roll_dice("roll four chickens and add six ferrets");
-    match r {
-       Ok(_) => assert!(false), // this should NOT be ok, fail
-       Err(_) => assert!(true), // bad expressions produce errors
-   }
-}
+// Malformed expressions return a descriptive error instead of panicking.
+assert!(d20::roll_dice("roll four chickens and add six ferrets").is_err());
 ```
+
+Every failure mode is reported through the `d20::D20Error` enum, and no input —
+however malformed — will ever panic. Counts, sides, and modifiers are supported
+up to the documented `MAX_DICE` / `MAX_SIDES` / `MAX_MODIFIER` limits; values
+beyond them return a clear error rather than overflowing.
+
 ### Iterating Roll
-A valid `Roll` can be converted into an open ended iterator via its `into_iter()` method, providing successive
+A valid `Roll` can be turned into an open-ended iterator via its `rolls()` method, providing successive
 rolls of the given die roll expression.
 
 _Note that it will be necessary to constrain the iterator via `take(n)`._
- 
+
 ```rust
-extern crate d20;
 use d20::*;
 
-fn main() {
-    let raw_stats: Vec<Roll> = d20::roll_dice("3d6").unwrap().into_iter().take(6).collect();
+let raw_stats: Vec<Roll> = d20::roll_dice("3d6").unwrap().rolls().take(6).collect();
 
-    println!("\nCHARACTER STATS:");
-    println!("  STR: {}", raw_stats[0].total);
-    println!("  INT: {}", raw_stats[1].total);
-    println!("  WIS: {}", raw_stats[2].total);
-    println!("  DEX: {}", raw_stats[3].total);
-    println!("  CON: {}", raw_stats[4].total);
-    println!("  CHA: {}", raw_stats[5].total);
-}
- ```
+println!("\nCHARACTER STATS:");
+println!("  STR: {}", raw_stats[0].total);
+println!("  INT: {}", raw_stats[1].total);
+println!("  WIS: {}", raw_stats[2].total);
+println!("  DEX: {}", raw_stats[3].total);
+println!("  CON: {}", raw_stats[4].total);
+println!("  CHA: {}", raw_stats[5].total);
+```
+
+### Deterministic Rolls
+For reproducible results (tests, replays), supply your own RNG via
+`roll_dice_with_rng` / `roll_range_with_rng`:
+
+```rust
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+
+let mut rng = StdRng::seed_from_u64(42);
+let a = d20::roll_dice_with_rng("3d6", &mut rng).unwrap();
+let b = d20::roll_dice_with_rng("3d6", &mut StdRng::seed_from_u64(42)).unwrap();
+assert_eq!(a, b); // same seed => same roll
+```
 
 ### Range Rolls
 If you are less concerned about dice rolls and require only a random number within a given range, `roll_range()`
 will do just that.
 
 ```rust
-extern crate d20;
-fn main() {
-    let rg = d20::roll_range(1,100).unwrap();
-    assert!(rg >= 1 && rg <= 100);
-}
+let rg = d20::roll_range(1, 100).unwrap();
+assert!((1..=100).contains(&rg));
 ```

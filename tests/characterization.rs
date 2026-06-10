@@ -51,7 +51,10 @@ fn preserve_display_formatting() {
     assert_eq!(format!("{}", roll), "3d1[1, 1, 1]+5 (Total: 8)");
 
     let bigger = roll_dice("3d1 - 2d1 - 4").unwrap();
-    assert_eq!(format!("{}", bigger), "3d1[1, 1, 1]-2d1[1, 1]-4 (Total: -3)");
+    assert_eq!(
+        format!("{}", bigger),
+        "3d1[1, 1, 1]-2d1[1, 1]-4 (Total: -3)"
+    );
 }
 
 #[test]
@@ -158,7 +161,10 @@ fn c8_whitespace_no_longer_merges_tokens() {
     // FIXED (Phase 5): "2d6 5" is ambiguous (missing operator) and is now
     // rejected instead of being fused into a single 65-sided die.
     let err = roll_dice("2d6 5").unwrap_err();
-    assert!(matches!(err, d20::D20Error::MissingOperator(_)), "got {err:?}");
+    assert!(
+        matches!(err, d20::D20Error::MissingOperator(_)),
+        "got {err:?}"
+    );
     // The well-formed version still works and preserves the original drex (C12).
     let r = roll_dice("2d6 + 5").unwrap();
     assert_eq!(r.values.len(), 2);
@@ -221,7 +227,10 @@ fn caps_reject_too_many_sides() {
 #[test]
 fn caps_reject_too_many_dice() {
     let err = roll_dice(&format!("{}d6", MAX_DICE as u64 + 1)).unwrap_err();
-    assert!(matches!(err, D20Error::DiceCountTooLarge { .. }), "got {err:?}");
+    assert!(
+        matches!(err, D20Error::DiceCountTooLarge { .. }),
+        "got {err:?}"
+    );
 }
 
 #[test]
@@ -241,8 +250,17 @@ fn caps_zero_sided_die_is_specific_error() {
 fn caps_no_input_panics_across_extreme_values() {
     // Sweep a range of hostile inputs; every one must return Ok or Err, never panic.
     let inputs = [
-        "0d6", "1d1", "1000000d1000000", "-1000000d20", "+1000000", "-1000000",
-        "1d1000001", "1000001d6", "999999999999d6", "1d0", "",
+        "0d6",
+        "1d1",
+        "1000000d1000000",
+        "-1000000d20",
+        "+1000000",
+        "-1000000",
+        "1d1000001",
+        "1000001d6",
+        "999999999999d6",
+        "1d0",
+        "",
     ];
     for inp in inputs {
         let _ = roll_dice(inp); // must not panic
