@@ -25,37 +25,29 @@
 //!
 //! # Examples
 //! ```
-//! fn main() {
-//!     let r = d20::roll_dice("3d6 + 4").unwrap();
-//!     assert!(r.total > 6);
-//!     let r = d20::roll_dice("1d1-3").unwrap();
-//!     assert_eq!(r.total, -2);
+//! let r = d20::roll_dice("3d6 + 4").unwrap();
+//! assert!(r.total > 6);
+//! let r = d20::roll_dice("1d1-3").unwrap();
+//! assert_eq!(r.total, -2);
 //!
-//!     let r = d20::roll_dice("roll four chickens and add six ferrets");
-//!     match r {
-//!        Ok(_) => assert!(false), // this should NOT be ok, fail
-//!        Err(_) => assert!(true), // bad expressions produce errors
-//!    }
-//! }
+//! // Bad expressions produce errors rather than panicking.
+//! assert!(d20::roll_dice("roll four chickens and add six ferrets").is_err());
 //! ```
 //! ### Iterating Roll
-//! A valid `Roll` can be converted into an open ended iterator via its `into_iter()` method, providing successive
+//! A valid `Roll` can be turned into an open-ended iterator via its `rolls()` method, providing successive
 //! rolls of the given die roll expression.
 //!
 //! _Note that it will be necessary to constrain the iterator via `take(n)`._
-//! 
+//!
 //! ```rust
 //! use d20::*;
 //!
-//! fn main() {
-//!     let v: Vec<Roll> = d20::roll_dice("3d6").unwrap().into_iter().take(3).collect();
+//! let v: Vec<Roll> = d20::roll_dice("3d6").unwrap().rolls().take(3).collect();
 //!
-//!     assert_eq!(v.len(), 3);
-//!     assert!(v[0].total >= 3 && v[0].total <= 18);
-//!     assert!(v[1].total >= 3 && v[1].total <= 18);
-//!     assert!(v[2].total >= 3 && v[2].total <= 18);     
-//! }
-//!
+//! assert_eq!(v.len(), 3);
+//! assert!(v[0].total >= 3 && v[0].total <= 18);
+//! assert!(v[1].total >= 3 && v[1].total <= 18);
+//! assert!(v[2].total >= 3 && v[2].total <= 18);
 //! ```
 //!
 //! ### Range Rolls
@@ -63,16 +55,13 @@
 //! will do just that.
 //!
 //! ```rust
-//! # fn main() {
-//!     let rg = d20::roll_range(1,100).unwrap();
-//!     assert!(rg >= 1 && rg <= 100);
-//! # }
+//! let rg = d20::roll_range(1, 100).unwrap();
+//! assert!((1..=100).contains(&rg));
 //! ```
-//!
 //!
 use std::fmt;
 use std::sync::LazyLock;
-use rand::RngExt;
+use rand::{Rng, RngExt};
 use regex::Regex;
 
 /// Matches a single term anchored at the start of the remaining input, allowing
@@ -164,8 +153,9 @@ pub enum D20Error {
 ///
 /// The `total` field contains the net result of evaluating the entire roll expression.
 ///
-/// You can evaluate a roll expression (perform a roll) mutliple times by converting it into an iterator.
-#[derive(Debug)]
+/// You can evaluate a roll expression (perform a roll) multiple times by calling
+/// [`Roll::rolls`], which returns an iterator of fresh rolls.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Roll {
     /// A die roll expression conforming to the format specification
     pub drex: String,
@@ -183,55 +173,56 @@ pub struct Roll {
 ///
 /// `3d6[3,4,6]+5 (Total: 18)`
 impl fmt::Display for Roll {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {        
-        let mut out = String::new();
-
-        for i in 0..self.values.len() {
-            let ref val = self.values[i];
-            match val.0 {
-                DieRollTerm::Modifier(_) => out = out + format!("{}", &val.0).as_str(),
-                DieRollTerm::DieRoll { .. } => {
-                    out = out + format!("{}{:?}", &val.0, val.1).as_str();
-                }
-            };
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (term, values) in &self.values {
+            match term {
+                DieRollTerm::Modifier(_) => write!(f, "{term}")?,
+                DieRollTerm::DieRoll { .. } => write!(f, "{term}{values:?}")?,
+            }
         }
-        out = format!("{} (Total: {})", out, self.total);
-        write!(f, "{}", out)
+        write!(f, " (Total: {})", self.total)
     }
 }
 
-/// Converts an evaluated roll expression into an iterator, allowing the expression
-/// to be evaluated (including re-rolling of dice) multiple times. 
-impl IntoIterator for Roll {
-    type Item = Roll;
-    type IntoIter = RollIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
+impl Roll {
+    /// Returns an iterator that re-rolls this expression on each call to `next`,
+    /// yielding a fresh [`Roll`] every time.
+    ///
+    /// The iterator is **infinite**, so constrain it with
+    /// [`Iterator::take`]. Unlike re-parsing the expression, it reuses the
+    /// already-parsed terms, so only the dice are re-rolled.
+    ///
+    /// ```
+    /// let stats: Vec<d20::Roll> = d20::roll_dice("3d6").unwrap().rolls().take(6).collect();
+    /// assert_eq!(stats.len(), 6);
+    /// ```
+    pub fn rolls(&self) -> RollIterator {
         RollIterator {
-            roll: self,
-            index: 0,
+            drex: self.drex.clone(),
+            terms: self.values.iter().map(|(term, _)| term.clone()).collect(),
         }
     }
 }
 
-/// A `RollIterator` is created when `into_iter()` is called on a `Roll`.
+/// An infinite iterator of fresh rolls, created by [`Roll::rolls`].
 pub struct RollIterator {
-    roll: Roll,
-    index: usize,
+    drex: String,
+    terms: Vec<DieRollTerm>,
 }
 
 impl Iterator for RollIterator {
     type Item = Roll;
 
     fn next(&mut self) -> Option<Roll> {
-        let result = roll_dice(&self.roll.drex);
-        match result {
-            Ok(r) => {
-                self.index += 1;
-                Some(r)
-            }
-            Err(_) => return None,
-        }
+        let mut rng = rand::rng();
+        let values: Vec<(DieRollTerm, Vec<i32>)> = self
+            .terms
+            .iter()
+            .cloned()
+            .map(|term| term.evaluate(&mut rng))
+            .collect();
+        let total = values.iter().map(DieRollTerm::calculate).sum();
+        Some(Roll { drex: self.drex.clone(), values, total })
     }
 }
 
@@ -316,13 +307,12 @@ impl DieRollTerm {
         }
     }
 
-    /// Rolls the dice for this term (or echoes the modifier), returning the term
-    /// alongside the individual values produced.
-    fn evaluate(self) -> (DieRollTerm, Vec<i32>) {
+    /// Rolls the dice for this term (or echoes the modifier) using `rng`,
+    /// returning the term alongside the individual values produced.
+    fn evaluate<R: Rng + ?Sized>(self, rng: &mut R) -> (DieRollTerm, Vec<i32>) {
         match self {
             DieRollTerm::Modifier(n) => (self, vec![n]),
             DieRollTerm::DieRoll { multiplier, sides } => {
-                let mut rng = rand::rng();
                 let rolls = (0..multiplier.unsigned_abs())
                     .map(|_| rng.random_range(1..=sides) as i32)
                     .collect();
@@ -349,6 +339,13 @@ impl fmt::Display for DieRollTerm {
 /// [`D20Error`] describing why the expression could not be evaluated. This function
 /// never panics on malformed or out-of-range input.
 pub fn roll_dice(s: &str) -> Result<Roll, D20Error> {
+    roll_dice_with_rng(s, &mut rand::rng())
+}
+
+/// Like [`roll_dice`], but draws randomness from the supplied `rng` instead of
+/// the thread-local generator. Pass a seeded RNG (e.g. `StdRng::seed_from_u64`)
+/// for deterministic, reproducible rolls.
+pub fn roll_dice_with_rng<R: Rng + ?Sized>(s: &str, rng: &mut R) -> Result<Roll, D20Error> {
     let drex = s.trim().to_string();
     let terms = parse_die_roll_terms(&drex)?;
 
@@ -357,7 +354,7 @@ pub fn roll_dice(s: &str) -> Result<Roll, D20Error> {
     }
 
     let values: Vec<(DieRollTerm, Vec<i32>)> =
-        terms.into_iter().map(DieRollTerm::evaluate).collect();
+        terms.into_iter().map(|t| t.evaluate(rng)).collect();
     let total = values.iter().map(DieRollTerm::calculate).sum();
 
     Ok(Roll { drex, values, total })
@@ -405,10 +402,19 @@ fn parse_die_roll_terms(drex: &str) -> Result<Vec<DieRollTerm>, D20Error> {
 /// Returns a `Result` containing either the randomly generated `i32` or a
 /// [`D20Error::InvalidRange`] when `min > max`.
 pub fn roll_range(min: i32, max: i32) -> Result<i32, D20Error> {
+    roll_range_with_rng(min, max, &mut rand::rng())
+}
+
+/// Like [`roll_range`], but draws randomness from the supplied `rng`.
+pub fn roll_range_with_rng<R: Rng + ?Sized>(
+    min: i32,
+    max: i32,
+    rng: &mut R,
+) -> Result<i32, D20Error> {
     if min > max {
         Err(D20Error::InvalidRange { min, max })
     } else {
-        Ok(rand::rng().random_range(min..=max))
+        Ok(rng.random_range(min..=max))
     }
 }
 

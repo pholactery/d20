@@ -52,22 +52,23 @@ fn die_roll_term_parsed() {
         assert_eq!(m, 3);
         assert_eq!(s, 6);
     } else {
-        assert!(false);
+        panic!("expected a DieRoll term");
     }
 
     if let DieRollTerm::Modifier(n) = mfy {
         assert_eq!(n, 7);
     } else {
-        assert!(false);
+        panic!("expected a Modifier term");
     }
 }
 
 #[test]
 fn die_roll_term_calculated() {
-    let dt = DieRollTerm::parse("6d1").unwrap().evaluate();
-    let nt = DieRollTerm::parse("-4d1").unwrap().evaluate();
-    let pm = DieRollTerm::parse("+7").unwrap().evaluate();
-    let nm = DieRollTerm::parse("-7").unwrap().evaluate();
+    let mut rng = rand::rng();
+    let dt = DieRollTerm::parse("6d1").unwrap().evaluate(&mut rng);
+    let nt = DieRollTerm::parse("-4d1").unwrap().evaluate(&mut rng);
+    let pm = DieRollTerm::parse("+7").unwrap().evaluate(&mut rng);
+    let nm = DieRollTerm::parse("-7").unwrap().evaluate(&mut rng);
 
     let dtr = DieRollTerm::calculate(&dt);
     assert_eq!(dtr, 6);
@@ -85,7 +86,7 @@ fn die_roll_term_calculated() {
 #[test]
 fn die_roll_term_evaluated() {
     let drt = DieRollTerm::parse("3d1").unwrap();
-    let v = drt.evaluate();
+    let v = drt.evaluate(&mut rand::rng());
 
     assert_eq!(v.1.len(), 3);
     assert_eq!(v.1[0], 1);
@@ -97,8 +98,9 @@ fn die_roll_term_evaluated() {
 fn die_roll_term_modifier_evaluated() {
     let mfy = DieRollTerm::parse("+7").unwrap();
     let mfy2 = DieRollTerm::parse("-7").unwrap();
-    let v1 = mfy.evaluate();
-    let v2 = mfy2.evaluate();
+    let mut rng = rand::rng();
+    let v1 = mfy.evaluate(&mut rng);
+    let v2 = mfy2.evaluate(&mut rng);
 
     assert_eq!(v1.1.len(), 1);
     assert_eq!(v2.1.len(), 1);
@@ -133,12 +135,7 @@ fn roll_dice_produces_roll_for_valid_expression() {
 #[test]
 fn roll_dice_produces_error_for_invalid_expression() {
     let s = "two plus two equals CHICKEN!";
-    let r = roll_dice(s);
-
-    match r {
-        Ok(_) => assert!(false),
-        Err(_) => assert!(true),
-    }
+    assert!(roll_dice(s).is_err());
 }
 
 #[test]
@@ -154,18 +151,13 @@ fn result_range_roll_produces_result_in_range() {
 
 #[test]
 fn roll_range_min_max_switched() {
-    let r = roll_range(12, 1);
-
-    match r {
-        Ok(_) => assert!(false),
-        Err(_) => assert!(true),
-    }
+    assert!(roll_range(12, 1).is_err());
 }
 
 #[test]
 fn iterator_yields_new_results() {
     let r = roll_dice("3d6");
-    let v: Vec<Roll> = r.unwrap().into_iter().take(6).collect();
+    let v: Vec<Roll> = r.unwrap().rolls().take(6).collect();
 
     assert_eq!(v.len(), 6);
     assert!(v[0].total >= 3 && v[0].total <= 18);

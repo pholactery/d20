@@ -4,12 +4,11 @@
 //! start of the modernization work (edition 2015, rand 0.3, regex 0.2). They are
 //! intentionally split into three groups:
 //!
-//!   1. PRESERVE  — correct behavior that the modernization MUST keep.
-//!   2. PANICS    — inputs that currently `panic!` but SHOULD return `Err`
-//!                  (defects C1-C7 from the review). Pinned with `#[should_panic]`.
-//!   3. WRONG-OK  — inputs that currently return a confidently-wrong `Ok`
-//!                  (defects C8-C13). Pinned by asserting the *current wrong*
-//!                  output, with a comment describing the intended fix.
+//! 1. PRESERVE — correct behavior that the modernization MUST keep.
+//! 2. PANICS — inputs that originally `panic!`'d but should return `Err`
+//!    (defects C1-C7 from the review).
+//! 3. WRONG-OK — inputs that originally returned a confidently-wrong `Ok`
+//!    (defects C8-C13).
 //!
 //! As each fix lands in a later phase, the corresponding test here is rewritten
 //! from "documents the bug" to "asserts the fix", so the diff proves the change.
@@ -58,7 +57,7 @@ fn preserve_display_formatting() {
 #[test]
 fn preserve_range_roll_bounds() {
     let v = roll_range(1, 100).unwrap();
-    assert!(v >= 1 && v <= 100, "got {}", v);
+    assert!((1..=100).contains(&v), "got {}", v);
     // Single-value range returns that value.
     assert_eq!(roll_range(3, 3).unwrap(), 3);
 }
@@ -70,10 +69,10 @@ fn preserve_range_rejects_inverted() {
 
 #[test]
 fn preserve_iterator_take_yields_n_rolls() {
-    // The current `IntoIterator` yields an *infinite* re-roll stream; `take(n)`
-    // bounds it. Phase 6 replaces this with a named iterator method, but the
-    // ability to produce N successive rolls must be preserved.
-    let v: Vec<_> = roll_dice("3d6").unwrap().into_iter().take(6).collect();
+    // The infinite re-roll stream is now reached via the explicit `rolls()`
+    // method (Phase 6) rather than a surprising `IntoIterator`; `take(n)` bounds
+    // it. The ability to produce N successive rolls is preserved.
+    let v: Vec<_> = roll_dice("3d6").unwrap().rolls().take(6).collect();
     assert_eq!(v.len(), 6);
     for roll in &v {
         assert!(roll.total >= 3 && roll.total <= 18, "got {}", roll.total);
