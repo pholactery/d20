@@ -142,14 +142,15 @@ pub enum D20Error {
 
 /// Represents the _results_ of an evaluated die roll expression.
 ///
-/// The `Roll` struct contains the original _die roll expression_ passed to the `roll_dice()`
-/// function.
+/// The `Roll` struct contains the original _die roll expression_ passed to
+/// [`roll_dice`], the evaluated result of each term, and the net total.
 ///
-/// The list of `values` will always be a vector containing at least one element because roll
-/// expressions are not valid without at least 1 term. Each resulting value is a tuple containing
-/// the parsed `DieRollTerm` and a vector of values. For `DieRollTerm::Modifier` terms, this will be a single-element
-/// vector containing the modifier value. For `DieRollTerm::DieRoll` terms, this will be a vector
-/// containing the results of each die roll.
+/// `terms` always contains at least one element, because a roll expression is
+/// not valid without at least one term. Each element is a [`TermResult`]: a
+/// [`TermResult::Dice`] carries the multiplier, sides, and individual die
+/// results, while a [`TermResult::Modifier`] carries the constant value. This
+/// keeps the data self-describing — modifiers are not represented as fake
+/// single-element "rolls".
 ///
 /// The `total` field contains the net result of evaluating the entire roll expression.
 ///
@@ -157,12 +158,90 @@ pub enum D20Error {
 /// [`Roll::rolls`], which returns an iterator of fresh rolls.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Roll {
-    /// A die roll expression conforming to the format specification
+    /// The original die roll expression that produced this result.
     pub drex: String,
-    /// The results of evaluating each term in the expression
-    pub values: Vec<(DieRollTerm, Vec<i32>)>,
-    /// The net final result of evaluating all terms in the expression
+    /// The evaluated result of each term in the expression, in order.
+    pub terms: Vec<TermResult>,
+    /// The net final result of evaluating all terms in the expression.
     pub total: i64,
+}
+
+/// The evaluated result of a single term within a roll expression.
+///
+/// Returned as the elements of [`Roll::terms`]. A [`Dice`](TermResult::Dice)
+/// term records what was rolled; a [`Modifier`](TermResult::Modifier) term
+/// records a constant. Use [`TermResult::subtotal`] for the signed contribution
+/// of the term to the [`Roll::total`], and [`TermResult::rolls`] for the
+/// individual die results (empty for a modifier).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TermResult {
+    /// A die-roll term and the individual values it produced.
+    Dice {
+        /// Number of dice rolled. A negative value subtracts this term's total.
+        multiplier: i32,
+        /// Number of sides on each die.
+        sides: u32,
+        /// The individual die results, each in `1..=sides`. Contains
+        /// `multiplier.abs()` values.
+        rolls: Vec<u32>,
+    },
+    /// A constant numeric modifier such as `+5` or `-2`.
+    Modifier(i32),
+}
+
+impl TermResult {
+    /// The signed contribution of this term to the [`Roll::total`].
+    ///
+    /// For a [`Dice`](TermResult::Dice) term this is the sum of its rolls,
+    /// negated when the multiplier is negative; for a
+    /// [`Modifier`](TermResult::Modifier) it is the modifier value.
+    pub fn subtotal(&self) -> i64 {
+        match self {
+            TermResult::Modifier(n) => *n as i64,
+            TermResult::Dice {
+                multiplier, rolls, ..
+            } => {
+                let sum: i64 = rolls.iter().map(|&r| r as i64).sum();
+                if *multiplier < 0 { -sum } else { sum }
+            }
+        }
+    }
+
+    /// The individual die results for a [`Dice`](TermResult::Dice) term, or an
+    /// empty slice for a [`Modifier`](TermResult::Modifier).
+    pub fn rolls(&self) -> &[u32] {
+        match self {
+            TermResult::Dice { rolls, .. } => rolls,
+            TermResult::Modifier(_) => &[],
+        }
+    }
+
+    /// Recovers the parsed [`DieRollTerm`] that produced this result, so the
+    /// term can be re-rolled without re-parsing the expression.
+    fn term(&self) -> DieRollTerm {
+        match *self {
+            TermResult::Dice {
+                multiplier, sides, ..
+            } => DieRollTerm::DieRoll { multiplier, sides },
+            TermResult::Modifier(n) => DieRollTerm::Modifier(n),
+        }
+    }
+}
+
+/// Formats a single evaluated term: `3d6[4, 1, 6]` for dice, `+5` for modifiers.
+impl fmt::Display for TermResult {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TermResult::Modifier(n) => write!(f, "{n:+}"),
+            TermResult::Dice {
+                multiplier,
+                sides,
+                rolls,
+            } => {
+                write!(f, "{multiplier}d{sides}{rolls:?}")
+            }
+        }
+    }
 }
 
 /// Formats roll results, including die rolls, in a human-readable string.
@@ -173,11 +252,8 @@ pub struct Roll {
 /// `3d6[3,4,6]+5 (Total: 18)`
 impl fmt::Display for Roll {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (term, values) in &self.values {
-            match term {
-                DieRollTerm::Modifier(_) => write!(f, "{term}")?,
-                DieRollTerm::DieRoll { .. } => write!(f, "{term}{values:?}")?,
-            }
+        for term in &self.terms {
+            write!(f, "{term}")?;
         }
         write!(f, " (Total: {})", self.total)
     }
@@ -198,7 +274,7 @@ impl Roll {
     pub fn rolls(&self) -> RollIterator {
         RollIterator {
             drex: self.drex.clone(),
-            terms: self.values.iter().map(|(term, _)| term.clone()).collect(),
+            terms: self.terms.iter().map(TermResult::term).collect(),
         }
     }
 }
@@ -214,26 +290,28 @@ impl Iterator for RollIterator {
 
     fn next(&mut self) -> Option<Roll> {
         let mut rng = rand::rng();
-        let values: Vec<(DieRollTerm, Vec<i32>)> = self
+        let terms: Vec<TermResult> = self
             .terms
             .iter()
             .cloned()
             .map(|term| term.evaluate(&mut rng))
             .collect();
-        let total = values.iter().map(DieRollTerm::calculate).sum();
+        let total = terms.iter().map(TermResult::subtotal).sum();
         Some(Roll {
             drex: self.drex.clone(),
-            values,
+            terms,
             total,
         })
     }
 }
 
-/// Represents an individual term within a die roll expression. Terms can either be numeric
-/// modifiers like `+5` or `-2` or they can be terms indicating die rolls.
+/// An individual term parsed from a die roll expression, before it is rolled.
+///
+/// This is an internal representation; callers receive the evaluated
+/// [`TermResult`] instead, via [`Roll::terms`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DieRollTerm {
-    /// Indicates a die roll term to roll `multiplier` dice with `sides` sides.
+enum DieRollTerm {
+    /// A die roll term: roll `multiplier` dice with `sides` sides each.
     DieRoll {
         /// Number of times to roll the given die. A negative value subtracts the
         /// rolled total from the expression. Bounded by [`MAX_DICE`] in magnitude.
@@ -304,43 +382,21 @@ impl DieRollTerm {
         }
     }
 
-    /// Computes the signed contribution of an already-evaluated term to the total.
-    fn calculate(v: &(DieRollTerm, Vec<i32>)) -> i64 {
-        match v.0 {
-            DieRollTerm::Modifier(n) => n as i64,
-            DieRollTerm::DieRoll { multiplier, .. } => {
-                let sum: i64 = v.1.iter().map(|&val| val as i64).sum();
-                if multiplier < 0 { -sum } else { sum }
-            }
-        }
-    }
-
     /// Rolls the dice for this term (or echoes the modifier) using `rng`,
-    /// returning the term alongside the individual values produced.
-    fn evaluate<R: Rng + ?Sized>(self, rng: &mut R) -> (DieRollTerm, Vec<i32>) {
+    /// producing the evaluated [`TermResult`].
+    fn evaluate<R: Rng + ?Sized>(self, rng: &mut R) -> TermResult {
         match self {
-            DieRollTerm::Modifier(n) => (self, vec![n]),
+            DieRollTerm::Modifier(n) => TermResult::Modifier(n),
             DieRollTerm::DieRoll { multiplier, sides } => {
                 let rolls = (0..multiplier.unsigned_abs())
-                    .map(|_| rng.random_range(1..=sides) as i32)
+                    .map(|_| rng.random_range(1..=sides))
                     .collect();
-                (self, rolls)
+                TermResult::Dice {
+                    multiplier,
+                    sides,
+                    rolls,
+                }
             }
-        }
-    }
-}
-
-/// Formats an individual die roll term in a human-friendly fashion. For `Modifier` terms,
-/// this will force the printing of a + or - sign before the modifier value. For `DieRoll`
-/// terms, this displays the term in the form `5d10`.
-impl fmt::Display for DieRollTerm {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            DieRollTerm::Modifier(n) => write!(f, "{:+}", n),
-            DieRollTerm::DieRoll {
-                multiplier: m,
-                sides: s,
-            } => write!(f, "{}d{}", m, s),
         }
     }
 }
@@ -364,14 +420,10 @@ pub fn roll_dice_with_rng<R: Rng + ?Sized>(s: &str, rng: &mut R) -> Result<Roll,
         return Err(D20Error::EmptyExpression);
     }
 
-    let values: Vec<(DieRollTerm, Vec<i32>)> = terms.into_iter().map(|t| t.evaluate(rng)).collect();
-    let total = values.iter().map(DieRollTerm::calculate).sum();
+    let terms: Vec<TermResult> = terms.into_iter().map(|t| t.evaluate(rng)).collect();
+    let total = terms.iter().map(TermResult::subtotal).sum();
 
-    Ok(Roll {
-        drex,
-        values,
-        total,
-    })
+    Ok(Roll { drex, terms, total })
 }
 
 /// Parses a full roll expression into its terms, validating the *entire* input.

@@ -42,6 +42,27 @@ however malformed — will ever panic. Counts, sides, and modifiers are supporte
 up to the documented `MAX_DICE` / `MAX_SIDES` / `MAX_MODIFIER` limits; values
 beyond them return a clear error rather than overflowing.
 
+### Inspecting Results
+A `Roll` exposes the per-term breakdown via `terms: Vec<TermResult>`. Each
+`TermResult` is either a `Dice { multiplier, sides, rolls }` recording the
+individual die results, or a `Modifier(i32)` constant — so the data is
+self-describing (modifiers are not faked as single-element rolls):
+
+```rust
+use d20::TermResult;
+
+let r = d20::roll_dice("3d6 + 2").unwrap();
+for term in &r.terms {
+    match term {
+        TermResult::Dice { multiplier, sides, rolls } => {
+            println!("{multiplier}d{sides} rolled {rolls:?} (subtotal {})", term.subtotal());
+        }
+        TermResult::Modifier(n) => println!("modifier {n}"),
+    }
+}
+assert_eq!(r.total, r.terms.iter().map(TermResult::subtotal).sum());
+```
+
 ### Iterating Roll
 A valid `Roll` can be turned into an open-ended iterator via its `rolls()` method, providing successive
 rolls of the given die roll expression.

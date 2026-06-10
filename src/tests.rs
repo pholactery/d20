@@ -1,5 +1,5 @@
 use crate::DieRollTerm;
-use crate::Roll;
+use crate::{Roll, TermResult};
 use crate::{parse_die_roll_terms, roll_dice, roll_range};
 
 #[test]
@@ -89,17 +89,10 @@ fn die_roll_term_calculated() {
     let pm = DieRollTerm::parse("+7").unwrap().evaluate(&mut rng);
     let nm = DieRollTerm::parse("-7").unwrap().evaluate(&mut rng);
 
-    let dtr = DieRollTerm::calculate(&dt);
-    assert_eq!(dtr, 6);
-
-    let ntr = DieRollTerm::calculate(&nt);
-    assert_eq!(ntr, -4);
-
-    let pmr = DieRollTerm::calculate(&pm);
-    assert_eq!(pmr, 7);
-
-    let nmr = DieRollTerm::calculate(&nm);
-    assert_eq!(nmr, -7);
+    assert_eq!(dt.subtotal(), 6);
+    assert_eq!(nt.subtotal(), -4);
+    assert_eq!(pm.subtotal(), 7);
+    assert_eq!(nm.subtotal(), -7);
 }
 
 #[test]
@@ -107,10 +100,8 @@ fn die_roll_term_evaluated() {
     let drt = DieRollTerm::parse("3d1").unwrap();
     let v = drt.evaluate(&mut rand::rng());
 
-    assert_eq!(v.1.len(), 3);
-    assert_eq!(v.1[0], 1);
-    assert_eq!(v.1[1], 1);
-    assert_eq!(v.1[2], 1);
+    assert_eq!(v.rolls().len(), 3);
+    assert_eq!(v.rolls(), [1, 1, 1]);
 }
 
 #[test]
@@ -121,10 +112,11 @@ fn die_roll_term_modifier_evaluated() {
     let v1 = mfy.evaluate(&mut rng);
     let v2 = mfy2.evaluate(&mut rng);
 
-    assert_eq!(v1.1.len(), 1);
-    assert_eq!(v2.1.len(), 1);
-    assert_eq!(v1.1[0], 7);
-    assert_eq!(v2.1[0], -7);
+    // A modifier has no individual rolls; its value is its subtotal.
+    assert!(v1.rolls().is_empty());
+    assert!(v2.rolls().is_empty());
+    assert_eq!(v1.subtotal(), 7);
+    assert_eq!(v2.subtotal(), -7);
 }
 
 #[test]
@@ -135,10 +127,10 @@ fn roll_dice_produces_roll_for_valid_expression() {
 
     // drex now preserves the original expression (C12), not a stripped form.
     assert_eq!(r.drex, "2d6 + 6 + 4d10".to_string());
-    assert_eq!(r.values.len(), 3);
-    assert_eq!(r.values[0].1.len(), 2);
-    assert_eq!(r.values[1].1.len(), 1);
-    assert_eq!(r.values[2].1.len(), 4);
+    assert_eq!(r.terms.len(), 3);
+    assert_eq!(r.terms[0].rolls().len(), 2); // two d6 rolls
+    assert_eq!(r.terms[1].rolls().len(), 0); // a modifier has no rolls
+    assert_eq!(r.terms[2].rolls().len(), 4); // four d10 rolls
 
     let s = "3d1 + 2d1 + 1";
     let r = roll_dice(s);
@@ -183,17 +175,15 @@ fn iterator_yields_new_results() {
 }
 
 #[test]
-fn die_roll_term_displays_properly() {
-    let drt = DieRollTerm::parse("3d6").unwrap();
-    let pm = DieRollTerm::parse("5").unwrap();
-    let nm = DieRollTerm::parse("-6").unwrap();
-
-    let out = format!("{}", drt);
-    assert_eq!(out, "3d6");
-    let out = format!("{}", pm);
-    assert_eq!(out, "+5");
-    let out = format!("{}", nm);
-    assert_eq!(out, "-6");
+fn term_result_displays_properly() {
+    let dice = TermResult::Dice {
+        multiplier: 3,
+        sides: 6,
+        rolls: vec![4, 1, 6],
+    };
+    assert_eq!(format!("{dice}"), "3d6[4, 1, 6]");
+    assert_eq!(format!("{}", TermResult::Modifier(5)), "+5");
+    assert_eq!(format!("{}", TermResult::Modifier(-6)), "-6");
 }
 
 #[test]

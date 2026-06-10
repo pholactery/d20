@@ -39,10 +39,10 @@ fn preserve_deterministic_one_sided_dice() {
 #[test]
 fn preserve_values_structure() {
     let r = roll_dice("2d6 + 6 + 4d10").unwrap();
-    assert_eq!(r.values.len(), 3);
-    assert_eq!(r.values[0].1.len(), 2); // two d6 rolls
-    assert_eq!(r.values[1].1.len(), 1); // single modifier value
-    assert_eq!(r.values[2].1.len(), 4); // four d10 rolls
+    assert_eq!(r.terms.len(), 3);
+    assert_eq!(r.terms[0].rolls().len(), 2); // two d6 rolls
+    assert_eq!(r.terms[1].rolls().len(), 0); // a modifier has no rolls
+    assert_eq!(r.terms[2].rolls().len(), 4); // four d10 rolls
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn c1_large_multiplier_now_supported() {
     // FIXED (Phase 4): multiplier widened i8 -> i32 with a MAX_DICE cap.
     // "128d6" now rolls 128 dice instead of panicking on i8 overflow.
     let r = roll_dice("128d6").unwrap();
-    assert_eq!(r.values[0].1.len(), 128);
+    assert_eq!(r.terms[0].rolls().len(), 128);
     assert!(r.total >= 128 && r.total <= 768, "got {}", r.total);
 }
 
@@ -137,7 +137,7 @@ fn c6_min_multiplier_now_supported() {
     // FIXED (Phase 4): `multiplier.unsigned_abs()` replaces the panicking i8 abs;
     // "-128d6" rolls 128 dice and subtracts them.
     let r = roll_dice("-128d6").unwrap();
-    assert_eq!(r.values[0].1.len(), 128);
+    assert_eq!(r.terms[0].rolls().len(), 128);
     assert!(r.total >= -768 && r.total <= -128, "got {}", r.total);
 }
 
@@ -167,7 +167,7 @@ fn c8_whitespace_no_longer_merges_tokens() {
     );
     // The well-formed version still works and preserves the original drex (C12).
     let r = roll_dice("2d6 + 5").unwrap();
-    assert_eq!(r.values.len(), 2);
+    assert_eq!(r.terms.len(), 2);
     assert_eq!(r.drex, "2d6 + 5");
 }
 
@@ -191,8 +191,8 @@ fn c11_d6_shorthand_now_rolls_one_die() {
     // FIXED (Phase 5): "d6" (shorthand for 1d6) rolls one 6-sided die (1..=6)
     // instead of being misread as the constant +6.
     let r = roll_dice("d6").unwrap();
-    assert_eq!(r.values.len(), 1);
-    assert_eq!(r.values[0].1.len(), 1, "one die rolled");
+    assert_eq!(r.terms.len(), 1);
+    assert_eq!(r.terms[0].rolls().len(), 1, "one die rolled");
     assert!(r.total >= 1 && r.total <= 6, "got {}", r.total);
 }
 
