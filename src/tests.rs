@@ -1,6 +1,6 @@
-use Roll;
-use DieRollTerm;
-use {roll_dice, roll_range, parse_die_roll_terms};
+use crate::Roll;
+use crate::DieRollTerm;
+use crate::{roll_dice, roll_range, parse_die_roll_terms};
 
 #[test]
 fn die_roll_expression_parsed() {

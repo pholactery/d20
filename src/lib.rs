@@ -25,8 +25,6 @@
 //!
 //! # Examples
 //! ```
-//! extern crate d20;
-//!
 //! fn main() {
 //!     let r = d20::roll_dice("3d6 + 4").unwrap();
 //!     assert!(r.total > 6);
@@ -47,7 +45,6 @@
 //! _Note that it will be necessary to constrain the iterator via `take(n)`._
 //! 
 //! ```rust
-//! extern crate d20;
 //! use d20::*;
 //!
 //! fn main() {
@@ -66,17 +63,13 @@
 //! will do just that.
 //!
 //! ```rust
-//! # extern crate d20;
 //! # fn main() {
 //!     let rg = d20::roll_range(1,100).unwrap();
 //!     assert!(rg >= 1 && rg <= 100);
 //! # }
 //! ```
 //!
-//! 
-extern crate rand;
-extern crate regex;
-
+//!
 use std::fmt;
 use rand::{thread_rng, Rng};
 use regex::Regex;

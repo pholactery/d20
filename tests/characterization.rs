@@ -13,11 +13,6 @@
 //!
 //! As each fix lands in a later phase, the corresponding test here is rewritten
 //! from "documents the bug" to "asserts the fix", so the diff proves the change.
-//!
-//! NOTE: `extern crate d20;` is required under edition 2015 and will be removed
-//! in Phase 2 (edition 2024 bump).
-
-extern crate d20;
 
 use d20::roll_dice;
 use d20::roll_range;

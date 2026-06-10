@@ -9,6 +9,7 @@ documentation = "https://docs.rs/d20"
 repository = "https://github.com/pholactery/d20"
 readme = "README.md"
 keywords = ["dice", "roll", "game", "random", "dnd"]
+edition = "2024"
 
 
 [dependencies]
