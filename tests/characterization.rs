@@ -88,51 +88,55 @@ fn preserve_non_numeric_garbage_errors() {
 }
 
 // ---------------------------------------------------------------------------
-// GROUP 2 — PANICS that SHOULD become `Err` (defects C1-C7).
-// Each is pinned with `#[should_panic]`. Post-fix, these become
-// `assert!(roll_dice(...).is_err())` style tests.
+// GROUP 2 — formerly PANICS (defects C1-C7), now FIXED in Phases 3-4.
+// Inputs that used to abort the thread now either roll correctly (large values
+// are supported up to documented caps) or return a clean `Err`.
 // ---------------------------------------------------------------------------
 
 #[test]
-#[should_panic]
-fn c1_multiplier_overflow_panics() {
-    // multiplier: i8 (max 127). Should instead be a graceful error or supported.
-    let _ = roll_dice("128d6");
+fn c1_large_multiplier_now_supported() {
+    // FIXED (Phase 4): multiplier widened i8 -> i32 with a MAX_DICE cap.
+    // "128d6" now rolls 128 dice instead of panicking on i8 overflow.
+    let r = roll_dice("128d6").unwrap();
+    assert_eq!(r.values[0].1.len(), 128);
+    assert!(r.total >= 128 && r.total <= 768, "got {}", r.total);
 }
 
 #[test]
-#[should_panic]
-fn c2_modifier_overflow_panics() {
-    // Modifier(i8) (max 127). "+500" should not abort the thread.
-    let _ = roll_dice("+500");
+fn c2_large_modifier_now_supported() {
+    // FIXED (Phase 4): Modifier widened i8 -> i32 with a MAX_MODIFIER cap.
+    let r = roll_dice("+500").unwrap();
+    assert_eq!(r.total, 500);
 }
 
 #[test]
-#[should_panic]
-fn c3_sides_over_255_panics() {
-    // sides: u8 parse overflow. "1d256" should roll a 256-sided die or error.
-    let _ = roll_dice("1d256");
+fn c3_sides_over_255_now_supported() {
+    // FIXED (Phase 4): sides widened u8 -> u32. "1d256" rolls a 256-sided die.
+    let r = roll_dice("1d256").unwrap();
+    assert!(r.total >= 1 && r.total <= 256, "got {}", r.total);
 }
 
 #[test]
-#[should_panic]
-fn c4_sides_128_to_255_panics() {
-    // sides parses as u8=200 then `200 as i8` wraps to -56 => empty gen_range.
-    let _ = roll_dice("1d200");
+fn c4_sides_128_to_255_now_supported() {
+    // FIXED (Phase 4): the lossy `sides as i8` cast is gone; sampling is done in
+    // u32, so "1d200" rolls a real 200-sided die.
+    let r = roll_dice("1d200").unwrap();
+    assert!(r.total >= 1 && r.total <= 200, "got {}", r.total);
 }
 
 #[test]
-#[should_panic]
-fn c5_zero_sided_die_panics() {
-    // gen_range(1, 1) is an empty range. A 0-sided die should be a clean error.
-    let _ = roll_dice("1d0");
+fn c5_zero_sided_die_now_errors() {
+    // FIXED (Phase 4): a 0-sided die is a clean error instead of an empty-range panic.
+    assert!(roll_dice("1d0").is_err());
 }
 
 #[test]
-#[should_panic]
-fn c6_min_multiplier_abs_panics() {
-    // (-128i8).abs() overflows. "-128d6" should roll 128 dice (negated).
-    let _ = roll_dice("-128d6");
+fn c6_min_multiplier_now_supported() {
+    // FIXED (Phase 4): `multiplier.unsigned_abs()` replaces the panicking i8 abs;
+    // "-128d6" rolls 128 dice and subtracts them.
+    let r = roll_dice("-128d6").unwrap();
+    assert_eq!(r.values[0].1.len(), 128);
+    assert!(r.total >= -768 && r.total <= -128, "got {}", r.total);
 }
 
 #[test]
@@ -190,4 +194,49 @@ fn c13_leading_plus_dropped_in_signed_pair() {
     // "+-3": the regex grabs "-3" and silently drops the leading '+'.
     let r = roll_dice("+-3").unwrap();
     assert_eq!(r.total, -3);
+}
+
+// ---------------------------------------------------------------------------
+// GROUP 4 — documented caps (Phase 4). Values beyond the supported limits are
+// rejected with a descriptive error instead of panicking or hanging.
+// ---------------------------------------------------------------------------
+
+use d20::D20Error;
+use d20::{MAX_DICE, MAX_SIDES};
+
+#[test]
+fn caps_reject_too_many_sides() {
+    let err = roll_dice(&format!("1d{}", MAX_SIDES as u64 + 1)).unwrap_err();
+    assert!(matches!(err, D20Error::SidesTooLarge { .. }), "got {err:?}");
+}
+
+#[test]
+fn caps_reject_too_many_dice() {
+    let err = roll_dice(&format!("{}d6", MAX_DICE as u64 + 1)).unwrap_err();
+    assert!(matches!(err, D20Error::DiceCountTooLarge { .. }), "got {err:?}");
+}
+
+#[test]
+fn caps_reject_unparseable_huge_number() {
+    // A digit run too large for even a 64-bit integer is a clean InvalidTerm,
+    // not a panic.
+    let err = roll_dice("1d999999999999999999999999").unwrap_err();
+    assert!(matches!(err, D20Error::InvalidTerm(_)), "got {err:?}");
+}
+
+#[test]
+fn caps_zero_sided_die_is_specific_error() {
+    assert_eq!(roll_dice("1d0").unwrap_err(), D20Error::ZeroSidedDie);
+}
+
+#[test]
+fn caps_no_input_panics_across_extreme_values() {
+    // Sweep a range of hostile inputs; every one must return Ok or Err, never panic.
+    let inputs = [
+        "0d6", "1d1", "1000000d1000000", "-1000000d20", "+1000000", "-1000000",
+        "1d1000001", "1000001d6", "999999999999d6", "1d0", "",
+    ];
+    for inp in inputs {
+        let _ = roll_dice(inp); // must not panic
+    }
 }

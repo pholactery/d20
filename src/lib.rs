@@ -80,9 +80,69 @@ use regex::Regex;
 static DICE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"([+-]?\s*\d+[dD]\d+|[+-]?\s*\d+)").unwrap());
 
+/// Maximum number of dice a single term may roll (e.g. the `100` in `100d6`).
+/// Larger counts are rejected with [`D20Error::DiceCountTooLarge`] rather than
+/// panicking or hanging.
+pub const MAX_DICE: u32 = 1_000_000;
 
+/// Maximum number of sides a die may have (e.g. the `20` in `1d20`). Larger
+/// values are rejected with [`D20Error::SidesTooLarge`].
+pub const MAX_SIDES: u32 = 1_000_000;
 
-/// Represents the _results_ of an evaluated die roll expression. 
+/// Maximum absolute value of a numeric modifier (e.g. the `5` in `+5`). Larger
+/// magnitudes are rejected with [`D20Error::ModifierTooLarge`].
+pub const MAX_MODIFIER: u32 = 1_000_000;
+
+/// The error type returned when a roll expression cannot be evaluated.
+///
+/// Every failure mode is reported as a value of this type; the library never
+/// panics on malformed or out-of-range input.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum D20Error {
+    /// The expression contained no recognizable die-roll terms.
+    #[error("invalid die roll expression: no die roll terms found")]
+    EmptyExpression,
+    /// A term could not be parsed (e.g. a number too large to fit a 64-bit integer).
+    #[error("invalid term: '{0}'")]
+    InvalidTerm(String),
+    /// A die was specified with zero sides, which cannot be rolled.
+    #[error("invalid die: a die must have at least one side")]
+    ZeroSidedDie,
+    /// A die-roll term asked for more than [`MAX_DICE`] dice.
+    #[error("dice count {count} exceeds the maximum of {max}")]
+    DiceCountTooLarge {
+        /// The requested number of dice.
+        count: u64,
+        /// The maximum allowed ([`MAX_DICE`]).
+        max: u32,
+    },
+    /// A die was specified with more than [`MAX_SIDES`] sides.
+    #[error("die with {sides} sides exceeds the maximum of {max}")]
+    SidesTooLarge {
+        /// The requested number of sides.
+        sides: u64,
+        /// The maximum allowed ([`MAX_SIDES`]).
+        max: u32,
+    },
+    /// A modifier's magnitude exceeded [`MAX_MODIFIER`].
+    #[error("modifier {modifier} exceeds the maximum magnitude of {max}")]
+    ModifierTooLarge {
+        /// The requested modifier value.
+        modifier: i64,
+        /// The maximum allowed magnitude ([`MAX_MODIFIER`]).
+        max: u32,
+    },
+    /// [`roll_range`] was called with `min` greater than `max`.
+    #[error("invalid range: min ({min}) must be less than or equal to max ({max})")]
+    InvalidRange {
+        /// The supplied lower bound.
+        min: i32,
+        /// The supplied upper bound.
+        max: i32,
+    },
+}
+
+/// Represents the _results_ of an evaluated die roll expression.
 /// 
 /// The `Roll` struct contains the original _die roll expression_ passed to the `roll_dice()`
 /// function.
@@ -101,9 +161,9 @@ pub struct Roll {
     /// A die roll expression conforming to the format specification
     pub drex: String,
     /// The results of evaluating each term in the expression
-    pub values: Vec<(DieRollTerm, Vec<i8>)>,
+    pub values: Vec<(DieRollTerm, Vec<i32>)>,
     /// The net final result of evaluating all terms in the expression
-    pub total: i32,
+    pub total: i64,
 }
 
 
@@ -168,53 +228,90 @@ impl Iterator for RollIterator {
 
 /// Represents an individual term within a die roll expression. Terms can either be numeric
 /// modifiers like `+5` or `-2` or they can be terms indicating die rolls.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DieRollTerm {
     /// Indicates a die roll term to roll `multiplier` dice with `sides` sides.
     DieRoll {
-        /// Number of times to roll the given die
-        multiplier: i8,
-        /// Number of sides on the given die
-        sides: u8,
+        /// Number of times to roll the given die. A negative value subtracts the
+        /// rolled total from the expression. Bounded by [`MAX_DICE`] in magnitude.
+        multiplier: i32,
+        /// Number of sides on the given die. At least 1 and at most [`MAX_SIDES`].
+        sides: u32,
     },
     /// Numeric modifier used in simple left-to-right numeric evaluation of a die roll expression.
-    Modifier(i8),
+    Modifier(i32),
 }
 
 
 impl DieRollTerm {
-    fn parse(drt: &str) -> DieRollTerm {
-        if drt.to_lowercase().contains('d') {
-            let v: Vec<&str> = drt.split("d").collect();
-            DieRollTerm::DieRoll {
-                multiplier: v[0].parse::<i8>().unwrap(),
-                sides: v[1].parse::<u8>().unwrap(),
+    /// Parses a single, whitespace-free term such as `3d6`, `-2d10`, `+5`, or `-2`.
+    ///
+    /// Numbers are parsed into 64-bit integers first so that oversized input is
+    /// reported as a descriptive [`D20Error`] instead of panicking.
+    fn parse(drt: &str) -> Result<DieRollTerm, D20Error> {
+        let lower = drt.to_lowercase();
+        if lower.contains('d') {
+            let mut parts = lower.splitn(2, 'd');
+            let mult_str = parts.next().unwrap_or("");
+            let sides_str = parts.next().unwrap_or("");
+
+            let multiplier = mult_str
+                .parse::<i64>()
+                .map_err(|_| D20Error::InvalidTerm(drt.to_string()))?;
+            let sides = sides_str
+                .parse::<u64>()
+                .map_err(|_| D20Error::InvalidTerm(drt.to_string()))?;
+
+            if multiplier.unsigned_abs() > MAX_DICE as u64 {
+                return Err(D20Error::DiceCountTooLarge {
+                    count: multiplier.unsigned_abs(),
+                    max: MAX_DICE,
+                });
             }
+            if sides == 0 {
+                return Err(D20Error::ZeroSidedDie);
+            }
+            if sides > MAX_SIDES as u64 {
+                return Err(D20Error::SidesTooLarge { sides, max: MAX_SIDES });
+            }
+
+            Ok(DieRollTerm::DieRoll {
+                multiplier: multiplier as i32,
+                sides: sides as u32,
+            })
         } else {
-            DieRollTerm::Modifier(drt.parse::<i8>().unwrap())
+            let modifier = drt
+                .parse::<i64>()
+                .map_err(|_| D20Error::InvalidTerm(drt.to_string()))?;
+            if modifier.unsigned_abs() > MAX_MODIFIER as u64 {
+                return Err(D20Error::ModifierTooLarge { modifier, max: MAX_MODIFIER });
+            }
+            Ok(DieRollTerm::Modifier(modifier as i32))
         }
     }
 
-
-    fn calculate(v: (DieRollTerm, Vec<i8>)) -> i32 {
+    /// Computes the signed contribution of an already-evaluated term to the total.
+    fn calculate(v: &(DieRollTerm, Vec<i32>)) -> i64 {
         match v.0 {
-            DieRollTerm::Modifier(n) => n as i32,
-            DieRollTerm::DieRoll { multiplier: m, .. } => {
-                let mut sum: i32 = v.1.iter().fold(0i32, |sum, &val| sum + val as i32);
-                if m < 0 {
-                    sum = sum * -1;
-                }
-                sum
+            DieRollTerm::Modifier(n) => n as i64,
+            DieRollTerm::DieRoll { multiplier, .. } => {
+                let sum: i64 = v.1.iter().map(|&val| val as i64).sum();
+                if multiplier < 0 { -sum } else { sum }
             }
         }
     }
 
-    fn evaluate(self) -> (DieRollTerm, Vec<i8>) {
+    /// Rolls the dice for this term (or echoes the modifier), returning the term
+    /// alongside the individual values produced.
+    fn evaluate(self) -> (DieRollTerm, Vec<i32>) {
         match self {
             DieRollTerm::Modifier(n) => (self, vec![n]),
-            DieRollTerm::DieRoll { multiplier: m, sides: s } => {
+            DieRollTerm::DieRoll { multiplier, sides } => {
                 let mut rng = rand::rng();
-                (self, (0..m.abs()).map(|_| rng.random_range(1..=(s as i8))).collect())
+                let rolls = (0..multiplier.unsigned_abs())
+                    .map(|_| rng.random_range(1..=sides) as i32)
+                    .collect();
+                (self, rolls)
             }
         }
     }
@@ -233,43 +330,37 @@ impl fmt::Display for DieRollTerm {
 }
 
 /// Evaluates the expression string input as a die roll expression (e.g. 3d6 + 4). The
-/// results are returned in a `Result` object that contains either a valid `Roll` or some
-/// text indicating why the function was unable to roll the dice / evaluate the expression.
-pub fn roll_dice<'a>(s: &'a str) -> Result<Roll, &'a str> {
+/// results are returned in a `Result` containing either a valid [`Roll`] or a
+/// [`D20Error`] describing why the expression could not be evaluated. This function
+/// never panics on malformed or out-of-range input.
+pub fn roll_dice(s: &str) -> Result<Roll, D20Error> {
     let s: String = s.split_whitespace().collect();
-    let terms: Vec<DieRollTerm> = parse_die_roll_terms(&s);
+    let terms = parse_die_roll_terms(&s)?;
 
-    if terms.len() == 0 {
-        Err("Invalid die roll expression: no die roll terms found.")
-    } else {
-
-        let v: Vec<_> = terms.into_iter().map(|t| t.evaluate()).collect();
-        let t = v.clone();
-
-        Ok(Roll {
-            drex: s,
-            values: v,
-            total: t.into_iter().fold(0i32, |sum, val| sum + DieRollTerm::calculate(val)),
-        })
+    if terms.is_empty() {
+        return Err(D20Error::EmptyExpression);
     }
+
+    let values: Vec<(DieRollTerm, Vec<i32>)> =
+        terms.into_iter().map(DieRollTerm::evaluate).collect();
+    let total = values.iter().map(DieRollTerm::calculate).sum();
+
+    Ok(Roll { drex: s, values, total })
 }
 
-fn parse_die_roll_terms(drex: &str) -> Vec<DieRollTerm> {
-    let mut terms = Vec::new();
-
-    let matches = DICE_RE.find_iter(drex);
-    for m in matches {
-        terms.push(DieRollTerm::parse(&drex[m.start()..m.end()]));
-    }
-    terms
+fn parse_die_roll_terms(drex: &str) -> Result<Vec<DieRollTerm>, D20Error> {
+    DICE_RE
+        .find_iter(drex)
+        .map(|m| DieRollTerm::parse(m.as_str()))
+        .collect()
 }
 
-/// Generates a random number within the specified range. Returns a `Result` containing
-/// either a valid signed 32-bit integer with the randomly generated number or some text 
-/// indicating the reason for failure.
-pub fn roll_range<'a>(min: i32, max: i32) -> Result<i32, &'a str> {
+/// Generates a random number within the specified inclusive range `[min, max]`.
+/// Returns a `Result` containing either the randomly generated `i32` or a
+/// [`D20Error::InvalidRange`] when `min > max`.
+pub fn roll_range(min: i32, max: i32) -> Result<i32, D20Error> {
     if min > max {
-        Err("Invalid range: min must be less than or equal to max")
+        Err(D20Error::InvalidRange { min, max })
     } else {
         Ok(rand::rng().random_range(min..=max))
     }
