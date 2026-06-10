@@ -112,7 +112,8 @@ fn roll_dice_produces_roll_for_valid_expression() {
     let r = roll_dice(s);
     let r = r.unwrap();
 
-    assert_eq!(r.drex, "2d6+6+4d10".to_string());
+    // drex now preserves the original expression (C12), not a stripped form.
+    assert_eq!(r.drex, "2d6 + 6 + 4d10".to_string());
     assert_eq!(r.values.len(), 3);
     assert_eq!(r.values[0].1.len(), 2);
     assert_eq!(r.values[1].1.len(), 1);

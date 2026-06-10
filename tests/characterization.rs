@@ -149,51 +149,60 @@ fn c7_roll_range_max_no_longer_overflows() {
 }
 
 // ---------------------------------------------------------------------------
-// GROUP 3 — WRONG-OK: silently incorrect results (defects C8-C13).
-// These assert the CURRENT (wrong) behavior. Post-fix, they assert the
-// corrected behavior (a different valid roll, or an `Err`).
+// GROUP 3 — formerly WRONG-OK (defects C8-C13), now FIXED in Phase 5 by the
+// validating parser. Silently-wrong results are now either correct rolls or
+// clean errors.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn c8_whitespace_merges_tokens() {
-    // "2d6 5" should be 2d6 + 5. Today `split_whitespace().collect()` fuses it
-    // into "2d65" => a single 65-sided-die term. CURRENT (wrong) behavior:
-    let r = roll_dice("2d6 5").unwrap();
-    assert_eq!(r.values.len(), 1, "merged into one term");
-    assert_eq!(r.drex, "2d65"); // C12: drex holds the mangled string too
-    assert!(r.total >= 2 && r.total <= 130, "rolls a single d65: {}", r.total);
+fn c8_whitespace_no_longer_merges_tokens() {
+    // FIXED (Phase 5): "2d6 5" is ambiguous (missing operator) and is now
+    // rejected instead of being fused into a single 65-sided die.
+    let err = roll_dice("2d6 5").unwrap_err();
+    assert!(matches!(err, d20::D20Error::MissingOperator(_)), "got {err:?}");
+    // The well-formed version still works and preserves the original drex (C12).
+    let r = roll_dice("2d6 + 5").unwrap();
+    assert_eq!(r.values.len(), 2);
+    assert_eq!(r.drex, "2d6 + 5");
 }
 
 #[test]
-fn c9_garbage_with_digit_succeeds() {
-    // "I have 5 apples" should error; today it extracts "5" and returns Ok(5).
-    let r = roll_dice("I have 5 apples").unwrap();
-    assert_eq!(r.total, 5);
+fn c9_garbage_with_digit_now_errors() {
+    // FIXED (Phase 5): the parser must consume the whole input, so embedded
+    // numbers in prose no longer "succeed".
+    assert!(roll_dice("I have 5 apples").is_err());
 }
 
 #[test]
-fn c10_digit_nonsense_succeeds() {
-    // The companion to the GROUP 1 error test: swap the spelled-out "two" for
-    // the digit "2" and the same nonsense now SUCCEEDS. Demonstrates the error
-    // test passes only by accident (no digits), not by real validation.
-    let r = roll_dice("2 plus 2 equals CHICKEN!").unwrap();
-    assert_eq!(r.total, 4);
+fn c10_digit_nonsense_now_errors() {
+    // FIXED (Phase 5): the companion to preserve_non_numeric_garbage_errors.
+    // Swapping "two" for the digit "2" no longer sneaks through; both error now,
+    // so the validation is real rather than accidental.
+    assert!(roll_dice("2 plus 2 equals CHICKEN!").is_err());
 }
 
 #[test]
-fn c11_d6_shorthand_parsed_as_modifier() {
-    // "d6" (common shorthand for 1d6) should roll one 6-sided die (1..=6).
-    // Today the regex needs a leading digit, so it matches only "6" => +6.
+fn c11_d6_shorthand_now_rolls_one_die() {
+    // FIXED (Phase 5): "d6" (shorthand for 1d6) rolls one 6-sided die (1..=6)
+    // instead of being misread as the constant +6.
     let r = roll_dice("d6").unwrap();
     assert_eq!(r.values.len(), 1);
-    assert_eq!(r.total, 6, "treated as constant +6, never rolled");
+    assert_eq!(r.values[0].1.len(), 1, "one die rolled");
+    assert!(r.total >= 1 && r.total <= 6, "got {}", r.total);
 }
 
 #[test]
-fn c13_leading_plus_dropped_in_signed_pair() {
-    // "+-3": the regex grabs "-3" and silently drops the leading '+'.
-    let r = roll_dice("+-3").unwrap();
-    assert_eq!(r.total, -3);
+fn c13_ambiguous_double_sign_now_errors() {
+    // FIXED (Phase 5): "+-3" is ambiguous and is now rejected rather than
+    // silently dropping the leading '+'.
+    assert!(roll_dice("+-3").is_err());
+}
+
+#[test]
+fn c12_drex_preserves_original_expression() {
+    // FIXED (Phase 5/C12): drex stores the original input, not a mangled copy.
+    let r = roll_dice("2d6 + 6 + 4d10").unwrap();
+    assert_eq!(r.drex, "2d6 + 6 + 4d10");
 }
 
 // ---------------------------------------------------------------------------

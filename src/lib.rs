@@ -75,10 +75,14 @@ use std::sync::LazyLock;
 use rand::RngExt;
 use regex::Regex;
 
-/// Compiled once on first use and reused for every parse. The pattern matches a
-/// signed die-roll term (`3d6`, `-2d10`) or a signed numeric modifier (`+5`, `-2`).
-static DICE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"([+-]?\s*\d+[dD]\d+|[+-]?\s*\d+)").unwrap());
+/// Matches a single term anchored at the start of the remaining input, allowing
+/// surrounding whitespace. Captures the optional leading sign, and either a die
+/// roll (`count` may be empty for shorthand like `d6`) or a numeric modifier.
+/// Compiled once on first use and reused for every parse.
+static TERM_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\s*(?P<sign>[+-]?)\s*(?:(?P<count>\d*)[dD](?P<sides>\d+)|(?P<modval>\d+))\s*")
+        .unwrap()
+});
 
 /// Maximum number of dice a single term may roll (e.g. the `100` in `100d6`).
 /// Larger counts are rejected with [`D20Error::DiceCountTooLarge`] rather than
@@ -102,9 +106,14 @@ pub enum D20Error {
     /// The expression contained no recognizable die-roll terms.
     #[error("invalid die roll expression: no die roll terms found")]
     EmptyExpression,
-    /// A term could not be parsed (e.g. a number too large to fit a 64-bit integer).
+    /// A term could not be parsed (e.g. a number too large to fit a 64-bit integer),
+    /// or trailing/garbage characters were found that are not part of a valid term.
     #[error("invalid term: '{0}'")]
     InvalidTerm(String),
+    /// Two terms were placed next to each other without a `+` or `-` operator
+    /// between them (e.g. `2d6 5`).
+    #[error("missing '+' or '-' operator before '{0}'")]
+    MissingOperator(String),
     /// A die was specified with zero sides, which cannot be rolled.
     #[error("invalid die: a die must have at least one side")]
     ZeroSidedDie,
@@ -255,9 +264,15 @@ impl DieRollTerm {
             let mult_str = parts.next().unwrap_or("");
             let sides_str = parts.next().unwrap_or("");
 
-            let multiplier = mult_str
-                .parse::<i64>()
-                .map_err(|_| D20Error::InvalidTerm(drt.to_string()))?;
+            // An empty or sign-only count means a single die (e.g. `d6` == `1d6`,
+            // `-d6` == `-1d6`).
+            let multiplier = match mult_str {
+                "" | "+" => 1,
+                "-" => -1,
+                other => other
+                    .parse::<i64>()
+                    .map_err(|_| D20Error::InvalidTerm(drt.to_string()))?,
+            };
             let sides = sides_str
                 .parse::<u64>()
                 .map_err(|_| D20Error::InvalidTerm(drt.to_string()))?;
@@ -334,8 +349,8 @@ impl fmt::Display for DieRollTerm {
 /// [`D20Error`] describing why the expression could not be evaluated. This function
 /// never panics on malformed or out-of-range input.
 pub fn roll_dice(s: &str) -> Result<Roll, D20Error> {
-    let s: String = s.split_whitespace().collect();
-    let terms = parse_die_roll_terms(&s)?;
+    let drex = s.trim().to_string();
+    let terms = parse_die_roll_terms(&drex)?;
 
     if terms.is_empty() {
         return Err(D20Error::EmptyExpression);
@@ -345,14 +360,45 @@ pub fn roll_dice(s: &str) -> Result<Roll, D20Error> {
         terms.into_iter().map(DieRollTerm::evaluate).collect();
     let total = values.iter().map(DieRollTerm::calculate).sum();
 
-    Ok(Roll { drex: s, values, total })
+    Ok(Roll { drex, values, total })
 }
 
+/// Parses a full roll expression into its terms, validating the *entire* input.
+///
+/// Terms are consumed left to right. The first term may carry an optional sign;
+/// every later term must be preceded by an explicit `+`/`-` operator. Any
+/// characters that are not part of a valid term produce an error, so unlike a
+/// permissive `find_iter` scan this rejects garbage such as `"I have 5 apples"`
+/// and ambiguous juxtapositions such as `"2d6 5"` rather than silently
+/// extracting numbers from them.
 fn parse_die_roll_terms(drex: &str) -> Result<Vec<DieRollTerm>, D20Error> {
-    DICE_RE
-        .find_iter(drex)
-        .map(|m| DieRollTerm::parse(m.as_str()))
-        .collect()
+    let mut terms = Vec::new();
+    let mut pos = 0;
+
+    while pos < drex.len() {
+        let rest = &drex[pos..];
+        let caps = TERM_RE
+            .captures(rest)
+            .ok_or_else(|| D20Error::InvalidTerm(rest.to_string()))?;
+
+        let sign = caps.name("sign").map_or("", |m| m.as_str());
+        if !terms.is_empty() && sign.is_empty() {
+            return Err(D20Error::MissingOperator(rest.to_string()));
+        }
+
+        let token = match caps.name("sides") {
+            Some(sides) => {
+                let count = caps.name("count").map_or("", |m| m.as_str());
+                format!("{sign}{count}d{}", sides.as_str())
+            }
+            None => format!("{sign}{}", caps.name("modval").unwrap().as_str()),
+        };
+        terms.push(DieRollTerm::parse(&token)?);
+
+        pos += caps.get(0).unwrap().end();
+    }
+
+    Ok(terms)
 }
 
 /// Generates a random number within the specified inclusive range `[min, max]`.
