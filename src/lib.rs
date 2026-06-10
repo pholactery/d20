@@ -71,8 +71,14 @@
 //!
 //!
 use std::fmt;
-use rand::{thread_rng, Rng};
+use std::sync::LazyLock;
+use rand::RngExt;
 use regex::Regex;
+
+/// Compiled once on first use and reused for every parse. The pattern matches a
+/// signed die-roll term (`3d6`, `-2d10`) or a signed numeric modifier (`+5`, `-2`).
+static DICE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"([+-]?\s*\d+[dD]\d+|[+-]?\s*\d+)").unwrap());
 
 
 
@@ -207,7 +213,8 @@ impl DieRollTerm {
         match self {
             DieRollTerm::Modifier(n) => (self, vec![n]),
             DieRollTerm::DieRoll { multiplier: m, sides: s } => {
-                (self, (0..m.abs()).map(|_| thread_rng().gen_range(1, s as i8 + 1)).collect())
+                let mut rng = rand::rng();
+                (self, (0..m.abs()).map(|_| rng.random_range(1..=(s as i8))).collect())
             }
         }
     }
@@ -250,9 +257,7 @@ pub fn roll_dice<'a>(s: &'a str) -> Result<Roll, &'a str> {
 fn parse_die_roll_terms(drex: &str) -> Vec<DieRollTerm> {
     let mut terms = Vec::new();
 
-    let re = Regex::new(r"([+-]?\s*\d+[dD]\d+|[+-]?\s*\d+)").unwrap();
-
-    let matches = re.find_iter(drex);
+    let matches = DICE_RE.find_iter(drex);
     for m in matches {
         terms.push(DieRollTerm::parse(&drex[m.start()..m.end()]));
     }
@@ -266,7 +271,7 @@ pub fn roll_range<'a>(min: i32, max: i32) -> Result<i32, &'a str> {
     if min > max {
         Err("Invalid range: min must be less than or equal to max")
     } else {
-        Ok(thread_rng().gen_range(min, max + 1))
+        Ok(rand::rng().random_range(min..=max))
     }
 }
 

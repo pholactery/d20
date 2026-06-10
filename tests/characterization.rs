@@ -136,10 +136,12 @@ fn c6_min_multiplier_abs_panics() {
 }
 
 #[test]
-#[should_panic]
-fn c7_roll_range_max_overflow_panics() {
-    // `max + 1` overflows i32 when max == i32::MAX.
-    let _ = roll_range(0, i32::MAX);
+fn c7_roll_range_max_no_longer_overflows() {
+    // FIXED in Phase 3: migrating `gen_range(min, max + 1)` to the idiomatic
+    // `random_range(min..=max)` removes the `max + 1` overflow. roll_range now
+    // samples the full i32 range without panicking.
+    let v = roll_range(0, i32::MAX).unwrap();
+    assert!(v >= 0, "got {}", v);
 }
 
 // ---------------------------------------------------------------------------

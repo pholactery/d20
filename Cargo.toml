@@ -13,5 +13,5 @@ edition = "2024"
 
 
 [dependencies]
-rand = "0.3"
-regex = "0.2"
+rand = "0.10"
+regex = "1"
