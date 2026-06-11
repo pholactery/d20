@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-06-11
+
+### Added
+- Declared a minimum supported Rust version of `1.85` via `rust-version` in
+  `Cargo.toml`. This is the version required by edition 2024 and `rand 0.10`;
+  declaring it gives users on older toolchains a clear error instead of a
+  cryptic build failure. No code or behavior changes.
+
 ## [0.2.0] - 2026-06-10
 
 Modernization to current idiomatic Rust, dependency updates, and a set of
