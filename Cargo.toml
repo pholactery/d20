@@ -1,6 +1,6 @@
 [package]
 name = "d20"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Dan Nemeth <dan.nemeth@gmail.com>", "Kevin Hoffman <alothien@gmail.com>"]
 description = "A library for rolling dice based on simple expressions"
 license = "MPL-2.0"
@@ -10,6 +10,7 @@ repository = "https://github.com/pholactery/d20"
 readme = "README.md"
 keywords = ["dice", "roll", "game", "random", "dnd"]
 edition = "2024"
+rust-version = "1.85"
 
 
 [dependencies]
